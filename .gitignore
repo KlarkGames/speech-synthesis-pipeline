@@ -1,1 +1,15 @@
 data/*
+
+# PDM
+.pdm-python
+
+# Python
+**/__pycache__
+.venv
+venv
+
+# Secrets
+.env
+
+# Visual Studio Code
+.vscode

@@ -1,0 +1,30 @@
+[project]
+name = "emotional-speech-synthesis-pipeline"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    {name = "Alex Laletin", email = "alex.klark.laletin@yandex.com"},
+]
+dependencies = [
+    "click>=8.1.7",
+    "pydub>=0.25.1",
+    "pytest>=8.3.3",
+    "requests>=2.32.3",
+    "joblib>=1.4.2",
+    "librosa>=0.10.2.post1",
+]
+requires-python = "==3.11.*"
+readme = "README.md"
+license = {text = "MIT"}
+
+
+[tool.pdm]
+distribution = false
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests",]
+
+[tool.ruff]
+line-length = 120
