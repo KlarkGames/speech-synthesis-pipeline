@@ -26,9 +26,7 @@ class AudioFile:
     }
 
     def __init__(self, filepath: str):
-        assert filepath.endswith(
-            ".wav"
-        ), f"{filepath} is not a .wav file. Only .wav files are supported."
+        assert filepath.endswith(".wav"), f"{filepath} is not a .wav file. Only .wav files are supported."
         self.filepath = Path(filepath)
         self.speaker, self.emotion, self.audio_id = self.parse_filepath()
 
@@ -50,15 +48,11 @@ class AudioFile:
         try:
             return self.speaker_to_speaker_id[self.speaker]
         except KeyError:
-            logger.error(
-                f"Speaker {self.speaker} not found in speaker_to_speaker_id dictionary."
-            )
+            logger.error(f"Speaker {self.speaker} not found in speaker_to_speaker_id dictionary.")
 
     @property
     def output_path_from_dataset_root(self):
-        return os.path.join(
-            f"speaker_{self.speaker_id}", "wavs", self.emotion, f"{self.audio_id}.wav"
-        )
+        return os.path.join(f"speaker_{self.speaker_id}", "wavs", self.emotion, f"{self.audio_id}.wav")
 
     def save_audio(
         self,
@@ -69,14 +63,10 @@ class AudioFile:
         audio, sample_rate = librosa.load(self.filepath)
 
         if change_sample_rate:
-            audio = librosa.resample(
-                audio, orig_sr=sample_rate, target_sr=result_sample_rate
-            )
+            audio = librosa.resample(audio, orig_sr=sample_rate, target_sr=result_sample_rate)
             sample_rate = result_sample_rate
 
-        save_path = os.path.join(
-            output_dataset_path, self.output_path_from_dataset_root
-        )
+        save_path = os.path.join(output_dataset_path, self.output_path_from_dataset_root)
         if not os.path.exists(save_path):
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
@@ -91,21 +81,17 @@ def preprocess(
     download_cmuarctic_data: bool = False,
     change_sample_rate: bool = False,
     result_sample_rate: int = 44100,
-    n_jobs: int = 4,
+    n_jobs: int = -1,
 ):
     if cmuarctic_data_path is None:
         cmuarctic_data_path = os.path.join(dataset_path, "cmuarctic.data")
 
     if os.path.isfile(cmuarctic_data_path):
-        logger.info(
-            f"Found cmuarctic.data file in dataset path. Loading it from: {cmuarctic_data_path}"
-        )
+        logger.info(f"Found cmuarctic.data file in dataset path. Loading it from: {cmuarctic_data_path}")
         with open(cmuarctic_data_path, "r") as f:
             cmuarctic_data = f.read()
     else:
-        logger.info(
-            f"Not found cmuarctic.data file in dataset path. Downloading it from: {cmuarctic_url}"
-        )
+        logger.info(f"Not found cmuarctic.data file in dataset path. Downloading it from: {cmuarctic_url}")
         try:
             cmuarctic_data = requests.get(cmuarctic_url).text
             logger.info(f"Downloaded cmuarctic.data file from: {cmuarctic_url}")
@@ -121,21 +107,14 @@ def preprocess(
 
     audio_id_to_text = get_audio_id_to_text(cmuarctic_data)
 
-    audio_files = [
-        AudioFile(filepath)
-        for filepath in glob(os.path.join(dataset_path, "*_*", "*.wav"))
-    ]
+    audio_files = [AudioFile(filepath) for filepath in glob(os.path.join(dataset_path, "*_*", "*.wav"))]
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    logger.info(
-        f"Found {len(audio_files)} audio files in dataset path. Saving them to: {output_path}"
-    )
+    logger.info(f"Found {len(audio_files)} audio files in dataset path. Saving them to: {output_path}")
     Parallel(n_jobs=n_jobs)(
-        delayed(audio_file.save_audio)(
-            output_path, change_sample_rate, result_sample_rate
-        )
+        delayed(audio_file.save_audio)(output_path, change_sample_rate, result_sample_rate)
         for audio_file in audio_files
     )
 
@@ -191,9 +170,7 @@ def get_audio_id_to_text(cmuarctic_data: str) -> Dict[int, str]:
     required=True,
     help="Path to EmoV_DB dataset",
 )
-@click.option(
-    "--output_path", type=click.Path(), required=True, help="Path to output directory"
-)
+@click.option("--output_path", type=click.Path(), required=True, help="Path to output directory")
 @click.option(
     "--cmuarctic_data_path",
     type=str,
@@ -220,7 +197,7 @@ def get_audio_id_to_text(cmuarctic_data: str) -> Dict[int, str]:
     default=44100,
     help="The sample rate to resample output audiofiles.",
 )
-@click.option("--n_jobs", default=4, help="Number of parallel jobs.")
+@click.option("--n_jobs", default=-1, help="Number of parallel jobs. If set to -1, use all available CPU cores.")
 def main(
     dataset_path: str,
     output_path: str,
