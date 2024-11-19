@@ -16,7 +16,7 @@ class AudioInfo:
     def __init__(self, path_to_opus: str) -> None:
         self.path_to_opus = Path(path_to_opus)
         self.processed = False
-        self._book = self.path_to_opus.parent.parent.name
+        self._book = self.path_to_opus.parent.name
         self.name = self.path_to_opus.stem
         self.path_from_speaker = os.path.join(self._book, self.name + ".wav")
 
