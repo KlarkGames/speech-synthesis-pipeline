@@ -1,0 +1,51 @@
+name: "postprocessing"
+backend: "python"
+max_batch_size: 0
+
+instance_group [
+  {
+    count: 1
+    kind: KIND_GPU
+  }
+]
+
+input [
+  {
+    name: "INPUT_AUDIOS",
+    data_type: TYPE_FP32,
+    dims: [ -1, -1 ]
+  },
+  {
+    name: "SAMPLES_TO_AUDIO_ARRAY",
+    data_type: TYPE_INT64,
+    dims: [ -1 ]
+  },
+  {
+    name: "AUDIO_LENGTH",
+    data_type: TYPE_INT64,
+    dims: [ 1 ]
+  },
+  {
+    name: "SAMPLE_RATE",
+    data_type: TYPE_INT64,
+    dims: [ 1 ]
+  },
+  {
+    name: "CHUNK_DURATION_S",
+    data_type: TYPE_FP32,
+    dims: [ 1 ]
+  },
+  {
+    name: "CHUNK_OVERLAP_S",
+    data_type: TYPE_FP32,
+    dims: [ 1 ]
+  }
+]
+
+output [
+  {
+    name: "OUTPUT_AUDIOS",
+    data_type: TYPE_FP32,
+    dims: [ -1, -1 ]
+  }
+]
