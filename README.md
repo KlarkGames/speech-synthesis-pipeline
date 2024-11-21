@@ -14,6 +14,8 @@
     - [Описание](#описание-1)
     - [Предобработка датасета](#предобработка-датасета-1)
 - [Структура датасетов после обработки](#структура-датасетов-после-обработки)
+- [Предобработка](#предобработка)
+  - [Улучшение качества с помощью Resemble Enhancer'а](#улучшение-качества-с-помощью-resemble-enhancerа)
 
 
 # Данные
@@ -297,3 +299,49 @@ all_datasets/                # Главная папка с нескольким
 - Аудиофайлы **представлены с 1 каналом (mono).**
 - .csv файлы **должны быть** сохранены с параметрами **sep='|', index=False**
 - Колонки для .csv файлов **должны быть** в порядке *path_to_wav | text | speaker_id* для поддержания обратной совместимости
+
+# Предобработка
+
+## Улучшение качества с помощью Resemble Enhancer'а
+
+Для улучшения качества голоса и избавления от внешних шумов используется [resemble-enhancer](https://github.com/resemble-ai/resemble-enhance/tree/main). Данный инструмент инкапсулирован в Triton Inference Server, подробнее про сервер можно прочитать в [официальных туториалах](https://github.com/triton-inference-server/tutorials). 
+
+Данный инструмент обрабатывает **только .wav файлы** и результатом являются .wav файлы с частотой дикретизации **44.1kHZ** с одним каналом (**mono**).
+
+
+Для обработки требуется сперва поднять Docker контейнер с Enhancer'ом
+
+Билд:
+
+```
+docker build -t resemble-enhancer-triton-container -f ./triton/enhancer/Dockerfile ./triton/enhancer
+```
+
+Запуск контейнера:
+
+```bash
+docker run -it --network host --name Esemble-Enhancer-Triton-Server --gpus device=0 resemble-enhancer-triton-container
+```
+
+Запуск сервера внутри контейнера:
+
+```bash
+tritonserver --model-repository /models --http-port=8520 --grpc-port=8521 --metrics-port=8522
+```
+
+Обработка Enhancer'ом [стандартизированного датасета](#структура-датасетов-после-обработки):
+
+```
+python -m src.preprocessing.enhance --triton-address 127.0.0.1 --triton-port 8520 --dataset-path [PATH_TO_ORIGIN_DATASET] --output-path [SAVE_PATH]
+```
+
+Описание всех параметров представлено ниже:
+- **--dataset_path** - Path to processing dataset.
+- **--output_path** - Path where the enhanced dataset will be saved.
+- **--chunk_duration** - The duration in seconds by which the enhancer will divide your sample. Default: 30.0
+- **--chunk_overlap** - The duration of overlap between adjacent samples. Does not enlarge chunk_duration. Default: 1.0
+- **--model_name** - The name of Triton Inference Server model. Default: enhancer_ensemble
+- **--batch_size** - The size of the batch of async tasks every job will process
+- **--triton_address** - The Triton Inference Server address
+- **--triton_port** - The Triton Inference Server port
+- **--n_jobs** - Number of parallel jobs. If -1 specified, use all available CPU cores.
