@@ -9,10 +9,6 @@ instance_group [
   }
 ]
 
-dynamic_batching {
-  max_queue_delay_microseconds: 1000000000
-}
-
 
 input [
     {

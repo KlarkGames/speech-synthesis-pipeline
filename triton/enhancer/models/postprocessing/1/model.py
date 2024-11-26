@@ -1,4 +1,5 @@
 import triton_python_backend_utils as pb_utils
+import numpy as np
 from torchaudio.transforms import MelSpectrogram
 import torch
 
@@ -10,33 +11,22 @@ class TritonPythonModel:
         responses = []
 
         for request in requests:
-            input_audios = pb_utils.get_input_tensor_by_name(request, "INPUT_AUDIOS").as_numpy()
-            audio_belonging = pb_utils.get_input_tensor_by_name(request, "SAMPLES_TO_AUDIO_ARRAY").as_numpy()
+            audio_chunks = pb_utils.get_input_tensor_by_name(request, "AUDIO_CHUNKS").as_numpy()
             audio_length = pb_utils.get_input_tensor_by_name(request, "AUDIO_LENGTH").as_numpy()[0]
             sample_rate = pb_utils.get_input_tensor_by_name(request, "SAMPLE_RATE").as_numpy()[0]
             chunk_duration_s = pb_utils.get_input_tensor_by_name(request, "CHUNK_DURATION_S").as_numpy()[0]
             chunk_overlap_s = pb_utils.get_input_tensor_by_name(request, "CHUNK_OVERLAP_S").as_numpy()[0]
 
-            input_audios = torch.tensor(input_audios)
-            audio_belongign = torch.tensor(audio_belonging)
-            n_audios = audio_belongign.max() + 1
+            audio_chunks = torch.tensor(audio_chunks)
             chunk_length = int(sample_rate * chunk_duration_s)
             overlap_length = int(sample_rate * chunk_overlap_s)
             hop_length = chunk_length - overlap_length
             
-            result_audios = torch.Tensor()
-            
-            for i in range(n_audios):
-                mask = audio_belongign == i
-                chunks = input_audios[mask, :]
-                
-                audio = self._merge_chunks(chunks, chunk_length, hop_length, sr=sample_rate, length=audio_length)
-                
-                result_audios = torch.cat([result_audios, audio], dim=0)
+            audio = self._merge_chunks(audio_chunks, chunk_length, hop_length, sr=sample_rate, length=audio_length)
 
             response = pb_utils.InferenceResponse(
                 output_tensors=[
-                    pb_utils.Tensor("OUTPUT_AUDIOS", result_audios.numpy()),
+                    pb_utils.Tensor("OUTPUT_AUDIO", audio.numpy()),
                 ]
             )
             responses.append(response)

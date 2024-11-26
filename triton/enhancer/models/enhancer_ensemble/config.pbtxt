@@ -4,9 +4,9 @@ max_batch_size: 0
 
 input [
   {
-    name: "INPUT_AUDIOS",
+    name: "INPUT_AUDIO",
     data_type: TYPE_FP32,
-    dims: [ -1, -1 ]
+    dims: [ -1 ]
   },
   {
     name: "SAMPLE_RATE",
@@ -27,9 +27,9 @@ input [
 
 output [
   {
-    name: "OUTPUT_AUDIOS",
+    name: "OUTPUT_AUDIO",
     data_type: TYPE_FP32,
-    dims: [ -1, -1 ]
+    dims: [ -1 ]
   }
 ]
 
@@ -39,8 +39,8 @@ ensemble_scheduling {
       model_name: "preprocessing",
       model_version: -1,
       input_map {
-        key: "INPUT_AUDIOS",
-        value: "INPUT_AUDIOS"
+        key: "INPUT_AUDIO",
+        value: "INPUT_AUDIO"
       },
       input_map {
         key: "SAMPLE_RATE",
@@ -57,10 +57,6 @@ ensemble_scheduling {
       output_map {
         key: "BATCHED_SAMPLES",
         value: "BATCHED_SAMPLES"
-      },
-      output_map {
-        key: "SAMPLES_TO_AUDIO_ARRAY",
-        value: "SAMPLES_TO_AUDIO_ARRAY"
       },
       output_map {
         key: "AUDIO_LENGTH",
@@ -83,12 +79,8 @@ ensemble_scheduling {
       model_name: "postprocessing",
       model_version: -1,
       input_map {
-        key: "INPUT_AUDIOS",
+        key: "AUDIO_CHUNKS",
         value: "AUDIO_SAMPLES"
-      },
-      input_map {
-        key: "SAMPLES_TO_AUDIO_ARRAY",
-        value: "SAMPLES_TO_AUDIO_ARRAY"
       },
       input_map {
         key: "AUDIO_LENGTH",
@@ -107,8 +99,8 @@ ensemble_scheduling {
         value: "CHUNK_OVERLAP_S"
       },
       output_map {
-        key: "OUTPUT_AUDIOS",
-        value: "OUTPUT_AUDIOS"
+        key: "OUTPUT_AUDIO",
+        value: "OUTPUT_AUDIO"
       }
     }
   ]
