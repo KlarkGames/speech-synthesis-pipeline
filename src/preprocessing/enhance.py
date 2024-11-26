@@ -3,12 +3,12 @@ import os
 from random import randint
 
 import click
-import librosa
 import numpy as np
 import pandas as pd
+import soundfile as sf
 from joblib import Parallel, delayed
+from pydub import AudioSegment
 from pytriton.client import AsyncioModelClient
-from scipy.io.wavfile import write
 from tqdm import tqdm
 
 
@@ -34,13 +34,15 @@ async def send_data_to_enhancer(
             if os.path.exists(output_path):
                 continue
 
-            audio_data, sample_rate = librosa.load(input_path, sr=None)
-            audio_data = audio_data.reshape(1, -1)
+            audio = AudioSegment.from_wav(input_path)
+            audio = audio.set_channels(1)
+
+            audio_data = np.array(audio.get_array_of_samples(), dtype=np.float32)
 
             results[output_path] = tg.create_task(
                 client.infer_sample(
-                    INPUT_AUDIOS=audio_data,
-                    SAMPLE_RATE=np.asarray([sample_rate]),
+                    INPUT_AUDIO=audio_data,
+                    SAMPLE_RATE=np.asarray([audio.frame_rate]),
                     CHUNK_DURATION_S=np.asarray([chunk_duration], dtype=np.float32),
                     CHUNK_OVERLAP_S=np.asarray([chunk_overlap], dtype=np.float32),
                 )
@@ -81,7 +83,7 @@ def process_audio_file(
         if not os.path.exists(os.path.dirname(output_path)):
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        write(output_path, 44100, output.result()["OUTPUT_AUDIOS"])
+        sf.write(output_path, output.result()["OUTPUT_AUDIO"], 44100)
 
     tqdm_bar.update(len(input_batch))
 
@@ -90,7 +92,7 @@ def process_audio_file(
 @click.option("--dataset_path", help="Path to processing dataset.")
 @click.option("--output_path", help="Path where the enhanced dataset will be saved.")
 @click.option(
-    "--chunk-duration",
+    "--chunk_duration",
     type=float,
     default=30.0,
     show_default=True,
