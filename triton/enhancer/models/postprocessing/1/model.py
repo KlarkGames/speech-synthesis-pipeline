@@ -1,7 +1,8 @@
-import triton_python_backend_utils as pb_utils
-import numpy as np
-from torchaudio.transforms import MelSpectrogram
 import torch
+import triton_python_backend_utils as pb_utils
+from torch.nn.functional import pad
+from torchaudio.transforms import MelSpectrogram
+
 
 class TritonPythonModel:
     def initialize(self, args):
@@ -21,7 +22,7 @@ class TritonPythonModel:
             chunk_length = int(sample_rate * chunk_duration_s)
             overlap_length = int(sample_rate * chunk_overlap_s)
             hop_length = chunk_length - overlap_length
-            
+
             audio = self._merge_chunks(audio_chunks, chunk_length, hop_length, sr=sample_rate, length=audio_length)
 
             response = pb_utils.InferenceResponse(
@@ -48,7 +49,7 @@ class TritonPythonModel:
             end = start + chunk_length
 
             if len(chunk) < chunk_length:
-                chunk = F.pad(chunk, (0, chunk_length - len(chunk)))
+                chunk = pad(chunk, (0, chunk_length - len(chunk)))
 
             if i > 0:
                 pre_region = chunks[i - 1][-overlap_length:]
@@ -69,7 +70,7 @@ class TritonPythonModel:
         signal = signal[:length]
 
         return signal
-    
+
     def _compute_offset(self, chunk1, chunk2, sr=44100):
         """
         Args:
@@ -106,6 +107,6 @@ class TritonPythonModel:
         offset = -argmax * hop_length
 
         return offset
-    
+
     def _compute_corr(self, x, y):
         return torch.fft.ifft(torch.fft.fft(x) * torch.fft.fft(y).conj()).abs()
