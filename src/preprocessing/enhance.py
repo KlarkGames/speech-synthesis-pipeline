@@ -98,12 +98,32 @@ def process_audio_file(
     show_default=True,
     help="The duration in seconds by which the enhancer will divide your sample.",
 )
-@click.option("--chunk_overlap", type=float, default=1.0, show_default=True, help="The duration of overlap between adjacent samples. Does not enlarge chunk_duration.")
-@click.option("--model_name", default="enhancer_ensemble", show_default=True, help="The name of Triton Inference Server model.")
-@click.option("--batch_size", type=int, default=10, show_default=True, help="The size of the batch of async tasks every job will process")
+@click.option(
+    "--chunk_overlap",
+    type=float,
+    default=1.0,
+    show_default=True,
+    help="The duration of overlap between adjacent samples. Does not enlarge chunk_duration.",
+)
+@click.option(
+    "--model_name", default="enhancer_ensemble", show_default=True, help="The name of Triton Inference Server model."
+)
+@click.option(
+    "--batch_size",
+    type=int,
+    default=10,
+    show_default=True,
+    help="The size of the batch of async tasks every job will process",
+)
 @click.option("--triton_address", help="The Triton Inference Server address")
 @click.option("--triton_port", type=int, help="The Triton Inference Server port")
-@click.option("--n_jobs", type=int, default=-1, show_default=True, help="Number of parallel jobs. If -1 specified, use all available CPU cores.")
+@click.option(
+    "--n_jobs",
+    type=int,
+    default=-1,
+    show_default=True,
+    help="Number of parallel jobs. If -1 specified, use all available CPU cores.",
+)
 def process_dataset(
     dataset_path,
     output_path,
