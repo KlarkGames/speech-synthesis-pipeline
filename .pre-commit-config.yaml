@@ -1,0 +1,29 @@
+repos:
+- repo: https://github.com/pdm-project/pdm
+  rev: 2.21.0
+  hooks:
+    - id: pdm-lock-check
+
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.6.3
+  hooks:
+    - id: ruff
+      types_or: [ python, pyi, jupyter ]
+      args: [ --config, pyproject.toml, --fix, --output-format=github]
+
+    - id: ruff
+      types_or: [ python, pyi, jupyter ]
+      args: [ --config, pyproject.toml, --fix ]
+
+    - id: ruff-format
+      types_or: [ python, pyi, jupyter ]
+      args: [ --config, pyproject.toml ]
+  
+- repo: local
+  hooks:
+    - id: pytest-check
+      name: pytest-check
+      entry: python -m pytest
+      language: system
+      pass_filenames: false
+      always_run: true
