@@ -1,0 +1,100 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" version="24.8.3">
+  <diagram name="Страница — 1" id="Bjtck9E-SstSqxhPNKBE">
+    <mxGraphModel dx="1434" dy="772" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-1" target="FpH-mY-YNEr1XlvHDJuO-5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-1" value="Reference of speaker and emotion" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#005F4B;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.veeam2.audio_file;" vertex="1" parent="1">
+          <mxGeometry x="70" y="347.65" width="68" height="94.71" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-2" target="FpH-mY-YNEr1XlvHDJuO-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-2" value="Text to pronounce" style="shape=image;html=1;verticalAlign=top;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;imageAspect=0;aspect=fixed;image=https://cdn3.iconfinder.com/data/icons/geosm-e-commerce/48/file-128.png" vertex="1" parent="1">
+          <mxGeometry x="40" y="181.18" width="128" height="128" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-31" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-4" target="FpH-mY-YNEr1XlvHDJuO-29">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-4" value="Text format Preprocessing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="210" y="190.18" width="190" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-5" target="FpH-mY-YNEr1XlvHDJuO-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-5" value="Audiofile format Preprocessing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="210" y="340" width="190" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-6" value="Pretrained Audio Embedding Model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="440" y="341.18" width="180" height="107.64" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-16" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-8" target="FpH-mY-YNEr1XlvHDJuO-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-8" value="Emotional Speech Synthesis Model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="800" y="160" width="220" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-17" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-9" target="FpH-mY-YNEr1XlvHDJuO-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-9" value="Audiofile format Postprocessing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="275" width="190" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-10" value="Pronounced text &lt;br&gt;with given speaker voice and emotion" style="sketch=0;pointerEvents=1;shadow=0;dashed=0;html=1;strokeColor=none;fillColor=#005F4B;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;outlineConnect=0;shape=mxgraph.veeam2.audio_file;" vertex="1" parent="1">
+          <mxGeometry x="1300" y="282.64" width="68" height="94.71" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-26" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-20" target="FpH-mY-YNEr1XlvHDJuO-23">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-20" value="Emotion Tag" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/Tag.svg;" vertex="1" parent="1">
+          <mxGeometry x="70" y="480" width="68" height="66.8" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-27" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-22" target="FpH-mY-YNEr1XlvHDJuO-23">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-22" value="Speaker Identifier" style="image;aspect=fixed;html=1;points=[];align=center;fontSize=12;image=img/lib/azure2/general/Tag.svg;" vertex="1" parent="1">
+          <mxGeometry x="70" y="582" width="68" height="66.8" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-23" value="Storage of Pretrained Embeddings of speakers and their emotions" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="225" y="491.9" width="180" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.25;entryDx=0;entryDy=0;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-29" target="FpH-mY-YNEr1XlvHDJuO-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-32" value="Text Embedding" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="FpH-mY-YNEr1XlvHDJuO-30">
+          <mxGeometry x="-0.0926" relative="1" as="geometry">
+            <mxPoint y="-15" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-29" value="Bert Text Embedding Model" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="440" y="191.36" width="180" height="107.64" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-40" target="FpH-mY-YNEr1XlvHDJuO-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-45" value="Audio Embedding" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" vertex="1" connectable="0" parent="FpH-mY-YNEr1XlvHDJuO-42">
+          <mxGeometry y="3" relative="1" as="geometry">
+            <mxPoint x="-50" y="-52" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-40" value="OR" style="shape=xor;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="375" width="60" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-43" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.175;entryY=0.75;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-23" target="FpH-mY-YNEr1XlvHDJuO-40">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="650" y="560" />
+              <mxPoint x="650" y="435" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="FpH-mY-YNEr1XlvHDJuO-44" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.175;entryY=0.25;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="1" source="FpH-mY-YNEr1XlvHDJuO-6" target="FpH-mY-YNEr1XlvHDJuO-40">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
