@@ -1,0 +1,27 @@
+version: '1.0'
+
+services:
+  enhancer-inference-server:
+    image: resemble-enhancer-triton-container
+    build:
+      context: ./triton/enhancer
+      dockerfile: Dockerfile
+    container_name: Resemble-Enhancer-Triton-Server
+    network_mode: "host"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
+    command: >-
+      tritonserver 
+      --model-repository /models 
+      --http-port=${TRITON_HTTP_PORT:-8520} 
+      --grpc-port=${TRITON_GRPC_PORT:-8521} 
+      --metrics-port=${TRITON_METRICS_PORT:-8522}
+    volumes:
+      - ./models:/models
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
