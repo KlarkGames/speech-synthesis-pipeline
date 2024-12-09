@@ -21,6 +21,8 @@
 - [Структура датасетов после обработки](#структура-датасетов-после-обработки)
 - [Предобработка](#предобработка)
   - [Улучшение качества с помощью Resemble Enhancer'а](#улучшение-качества-с-помощью-resemble-enhancerа)
+    - [Запуск Enhancer'а](#запуск-enhancerа)
+    - [Обработка Enhancer'ом стандартизированного датасета:](#обработка-enhancerом-стандартизированного-датасета)
 
 # Данные
 
@@ -315,25 +317,25 @@ all_datasets/                # Главная папка с нескольким
 
 Для обработки требуется сперва поднять Docker контейнер с Enhancer'ом
 
-Билд:
+### Запуск Enhancer'а
 
 ```
-docker build -t resemble-enhancer-triton-container -f ./triton/enhancer/Dockerfile ./triton/enhancer
+cd ./triton/enhancer
+docker compose up
 ```
 
-Запуск контейнера:
+Можно изменить порты Triton'а или количество доступных видеокарт следующим образом:
 
-```bash
-docker run -it --network host --name Esemble-Enhancer-Triton-Server --gpus device=0 resemble-enhancer-triton-container
+```
+docker compose up -e NVIDIA_VISIBLE_DEVICES=1,2 -e TRITON_HTTP_PORT=8000 -e TRITON_GRPC_PORT=8001 -e TRITON_METRICS_PORT=8002
 ```
 
-Запуск сервера внутри контейнера:
+Порты по умолчанию:
+- TRITON_HTTP_PORT: 8520
+- TRITON_GRPC_PORT: 8521
+- TRITON_METRICS_PORT: 8522
 
-```bash
-tritonserver --model-repository /models --http-port=8520 --grpc-port=8521 --metrics-port=8522
-```
-
-Обработка Enhancer'ом [стандартизированного датасета](#структура-датасетов-после-обработки):
+### Обработка Enhancer'ом [стандартизированного датасета](#структура-датасетов-после-обработки):
 
 ```
 python -m src.preprocessing.enhance --triton-address 127.0.0.1 --triton-port 8520 --dataset-path [PATH_TO_ORIGIN_DATASET] --output-path [SAVE_PATH]
