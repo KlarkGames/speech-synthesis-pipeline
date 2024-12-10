@@ -8,12 +8,12 @@ services:
       dockerfile: Dockerfile
     container_name: Resemble-Enhancer-Triton-Server
     network_mode: "host"
+    shm_size: '1gb'
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
               capabilities: ["gpu"]
     command: >-
       tritonserver 
