@@ -320,14 +320,13 @@ all_datasets/                # Главная папка с нескольким
 ### Запуск Enhancer'а
 
 ```
-cd ./triton/enhancer
-docker compose up
+docker compose -f triton/enhancer/compose.yaml up
 ```
 
-Можно изменить порты Triton'а или количество доступных видеокарт следующим образом:
+Можно изменить порты Triton'а или количество доступных видеокарт прописав соответствующие переменные среды в `.env` файле. Пример приведет в `.env.example`
 
 ```
-docker compose up -e NVIDIA_VISIBLE_DEVICES=1,2 -e TRITON_HTTP_PORT=8000 -e TRITON_GRPC_PORT=8001 -e TRITON_METRICS_PORT=8002
+docker compose --env-file .env -f triton/enhancer/compose.yaml up
 ```
 
 Порты по умолчанию:
