@@ -6,7 +6,7 @@ from torchaudio.transforms import MelSpectrogram
 
 class TritonPythonModel:
     def initialize(self, args):
-        pass
+        self.sample_rate = 44100
 
     def execute(self, requests):
         responses = []
@@ -14,16 +14,15 @@ class TritonPythonModel:
         for request in requests:
             audio_chunks = pb_utils.get_input_tensor_by_name(request, "AUDIO_CHUNKS").as_numpy()
             audio_length = pb_utils.get_input_tensor_by_name(request, "AUDIO_LENGTH").as_numpy()[0]
-            sample_rate = pb_utils.get_input_tensor_by_name(request, "SAMPLE_RATE").as_numpy()[0]
             chunk_duration_s = pb_utils.get_input_tensor_by_name(request, "CHUNK_DURATION_S").as_numpy()[0]
             chunk_overlap_s = pb_utils.get_input_tensor_by_name(request, "CHUNK_OVERLAP_S").as_numpy()[0]
 
             audio_chunks = torch.tensor(audio_chunks)
-            chunk_length = int(sample_rate * chunk_duration_s)
-            overlap_length = int(sample_rate * chunk_overlap_s)
+            chunk_length = int(self.sample_rate * chunk_duration_s)
+            overlap_length = int(self.sample_rate * chunk_overlap_s)
             hop_length = chunk_length - overlap_length
 
-            audio = self._merge_chunks(audio_chunks, chunk_length, hop_length, sr=sample_rate, length=audio_length)
+            audio = self._merge_chunks(audio_chunks, chunk_length, hop_length, sr=self.sample_rate, length=audio_length)
 
             response = pb_utils.InferenceResponse(
                 output_tensors=[
@@ -81,7 +80,7 @@ class TritonPythonModel:
         """
         hop_length = sr // 200  # 5 ms resolution
         win_length = hop_length * 4
-        n_fft = 2 ** (win_length - 1).bit_length()
+        n_fft = 2 ** int(win_length - 1).bit_length()
 
         mel_fn = MelSpectrogram(
             sample_rate=sr,

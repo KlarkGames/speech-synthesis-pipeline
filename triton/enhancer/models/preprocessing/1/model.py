@@ -32,8 +32,8 @@ class TritonPythonModel:
 
             audio_length = audio.shape[0]
 
-            chunk_length = int(sr * chunk_duration_s)
-            overlap_length = int(sr * chunk_overlap_s)
+            chunk_length = int(self.sample_rate * chunk_duration_s)
+            overlap_length = int(self.sample_rate * chunk_overlap_s)
             hop_length = chunk_length - overlap_length
 
             chunks = [audio[i : i + chunk_length] for i in range(0, audio_length, hop_length)]
