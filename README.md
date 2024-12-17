@@ -23,6 +23,9 @@
   - [Улучшение качества с помощью Resemble Enhancer'а](#улучшение-качества-с-помощью-resemble-enhancerа)
     - [Запуск Enhancer'а](#запуск-enhancerа)
     - [Обработка Enhancer'ом стандартизированного датасета:](#обработка-enhancerом-стандартизированного-датасета)
+  - [Расстановка запятых и точек в местах пауз голоса с помощью Montreal Forced Aligner](#расстановка-запятых-и-точек-в-местах-пауз-голоса-с-помощью-montreal-forced-aligner)
+    - [Установка зависимостей](#установка-зависимостей)
+    - [Обработка датасета с помощью MFA](#обработка-датасета-с-помощью-mfa)
 
 # Данные
 
@@ -350,3 +353,39 @@ python -m src.preprocessing.enhance --triton-address 127.0.0.1 --triton-port 852
 - **--triton_address** - The Triton Inference Server address
 - **--triton_port** - The Triton Inference Server port
 - **--n_jobs** - Number of parallel jobs. If -1 specified, use all available CPU cores.
+
+## Расстановка запятых и точек в местах пауз голоса с помощью Montreal Forced Aligner
+
+Montreal Forced Aligner позволяет по имеющимся текстам и аудиофайлам получить разметку времени произнесения каждого слова/фонемы. Таким образом можно определить, насколько длительны паузы между словами. Используя эту информацию можно расставить знаки препинания для того, чтобы модель синтеза голоса выучила соответвтующие паузы.
+
+### Установка зависимостей
+
+К сожалению Montreal Forced Aligner (MFA) имеет специфические зависимости, которые не устанавливаются корректно с помощью pip. Однако есть готовый контейнер с треубетыми библиотеками.
+
+Чтобы поднять соответствующий контейнер используйте:
+
+```bash
+docker run -it --name MFA_Processing -v [PATH_TO_DATA_TO_PROCESS]:/workspace/data -v $(pwd):/workspace mmcauliffe/montreal-forced-aligner
+```
+
+Дальшее нужно дополнительно установить библиотеку textgrid
+
+```
+pip install textgrid
+```
+
+### Обработка датасета с помощью MFA
+
+Внутри поднятого контейнера запустите следующий скрипт
+
+```bash
+cd /workspace
+
+python -m src.preprocessing.mfa_processing ./data/[YOUR_DATASET] 
+```
+
+Описание всех параметров представлено ниже:
+- **input_path** - Path to data to process.
+- **--n_jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+- **--comma_duration** - Duration of pause which will be indicated with comma. Default: 0.15
+- **--period_duration** - Duration of pause which will be indicated with period. Default: 0.3

@@ -87,10 +87,6 @@ ensemble_scheduling {
         value: "AUDIO_LENGTH"
       },
       input_map {
-        key: "SAMPLE_RATE",
-        value: "SAMPLE_RATE"
-      },
-      input_map {
         key: "CHUNK_DURATION_S",
         value: "CHUNK_DURATION_S"
       },

@@ -25,6 +25,14 @@ class AudioFile:
         "sam": 4,
     }
 
+    invalid_ids_to_valid_ids = {
+        ("bea", "neutral_113-140_0014"): 114,
+        ("bea", "neutral_113-140_0015.wav"): 115,
+        ("bea", "anger_197-224_0024.wav"): 224,
+        ("josh", "amused_197-224_0023.wav"): 223,
+        ("josh", "amused_225_252_0026.wav"): 226,
+    }
+
     def __init__(self, filepath: str):
         assert filepath.endswith(".wav"), f"{filepath} is not a .wav file. Only .wav files are supported."
         self.filepath = Path(filepath)
@@ -34,12 +42,16 @@ class AudioFile:
         speaker_regex = r"(.*)_.*"
         emotion_audio_id_regex = r"(.+)_[0-9]+[-_][0-9]+_([0-9]+).wav"
 
-        perent_directory = self.filepath.parent.name
-        speaker = re.search(speaker_regex, perent_directory).group(1)
+        parent_directory = self.filepath.parent.name
+        speaker = re.search(speaker_regex, parent_directory).group(1)
 
-        filename = self.filepath.name
+        filename = self.filepath.name.lower()
         emotion, audio_id = re.search(emotion_audio_id_regex, filename).groups()
         audio_id = int(audio_id)
+
+        valid_id = self.invalid_ids_to_valid_ids.get((speaker, self.filepath.name))
+        if valid_id is not None:
+            audio_id = valid_id
 
         return speaker, emotion, audio_id
 
@@ -52,7 +64,7 @@ class AudioFile:
 
     @property
     def output_path_from_dataset_root(self):
-        return os.path.join(f"speaker_{self.speaker_id}", "wavs", self.emotion, f"{self.audio_id}.wav")
+        return os.path.join(f"speaker_{self.speaker_id}", "wavs", f"{self.emotion}_{self.audio_id}.wav")
 
     def save_audio(
         self,
@@ -122,17 +134,18 @@ def preprocess(
 
     logger.info(f"Saving metadata.csv file to: {output_path}")
     with open(os.path.join(output_path, "metadata.csv"), "w") as f:
-        writer = csv.DictWriter(f, ["path_to_wav", "speaker_id", "emotion_id"])
+        writer = csv.DictWriter(f, ["path_to_wav", "speaker_id", "text"], delimiter="|")
 
         data = [
             {
                 "path_to_wav": audio_file.output_path_from_dataset_root,
                 "speaker_id": audio_file.speaker_id,
-                "emotion_id": audio_id_to_text[audio_file.audio_id],
+                "text": audio_id_to_text[audio_file.audio_id],
             }
             for audio_file in audio_files
         ]
 
+        writer.writeheader()
         writer.writerows(data)
     logger.info(f"Saved metadata.csv file to: {output_path}")
 

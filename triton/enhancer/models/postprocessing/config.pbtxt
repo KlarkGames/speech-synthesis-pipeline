@@ -21,11 +21,6 @@ input [
     dims: [ 1 ]
   },
   {
-    name: "SAMPLE_RATE",
-    data_type: TYPE_INT64,
-    dims: [ 1 ]
-  },
-  {
     name: "CHUNK_DURATION_S",
     data_type: TYPE_FP32,
     dims: [ 1 ]
