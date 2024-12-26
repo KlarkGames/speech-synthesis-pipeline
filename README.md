@@ -26,6 +26,7 @@
   - [Расстановка запятых и точек в местах пауз голоса с помощью Montreal Forced Aligner](#расстановка-запятых-и-точек-в-местах-пауз-голоса-с-помощью-montreal-forced-aligner)
     - [Установка зависимостей](#установка-зависимостей)
     - [Обработка датасета с помощью MFA](#обработка-датасета-с-помощью-mfa)
+  - [Распознование произнесенного текста с помощью ASR](#распознование-произнесенного-текста-с-помощью-asr)
 
 # Данные
 
@@ -389,3 +390,26 @@ python -m src.preprocessing.mfa_processing ./data/[YOUR_DATASET]
 - **--n_jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
 - **--comma_duration** - Duration of pause which will be indicated with comma. Default: 0.15
 - **--period_duration** - Duration of pause which will be indicated with period. Default: 0.3
+
+## Распознование произнесенного текста с помощью ASR
+
+Для оценки качества голоса в записях используется оценка с помощью Automatic Speech Recognition. Оригинальные текст сопоставляется с распознанным по WER и CER. В случаях, когда эти показатели превышают требуемый порог - информация о семплах удаляется из `metadata.csv`.
+
+Для анализа используется Triton Inference Server с ASR моделью. Данный сервер находится под NDA. Принцип работы аналогичен [обработке Enhancer'ом](#улучшение-качества-с-помощью-resemble-enhancerа).
+
+### Обработка датасета с помощью ASR
+
+После поднятия ASR Triton Inference Server'a запустите следующий скрипт:
+
+```
+python -m src.preprocessing.asr_processing --dataset_path [PATH_TO_DATASET] --triton_port 127.0.0.1 --triton_port 9870 --cer_threshold 0.1 --wer_threshold 0.1
+```
+
+Описание всех параметров представлено ниже:
+- **dataset_path** - Path to the dataset containing audio files.
+- **--n_jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+- **--wer_threshold** - WER threshold.. Default: 0.5
+- **--cer_threshold** - CER threshold. Default: 0.5
+- **--triton_address** - Address of the Triton Inference Server. Default: localhost
+- **--triton_port** - Port of the Triton Inference Server. Default: 8000
+- **--batch_size** - Batch size for processing audio files. Default: 10
