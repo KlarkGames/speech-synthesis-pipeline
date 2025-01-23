@@ -1,14 +1,22 @@
 import asyncio
+import dataclasses
 import os
 
 import click
 import numpy as np
 import pandas as pd
-from jiwer import cer, wer
+from dotenv import load_dotenv
 from joblib import Parallel, delayed
 from pydub import AudioSegment
 from pytriton.client import AsyncioModelClient
+from sqlalchemy import create_engine, select, update
+from sqlalchemy.orm import Session
 from tqdm import tqdm
+
+from src.metrics_collection.models import AudioToASRText, Base
+from src.utils import read_metadata_and_calculate_hash, update_bar_on_ending
+
+load_dotenv()
 
 
 async def get_texts_from_audio_by_asr(triton_address, triton_port, dataset_dir, input_batch):
@@ -51,7 +59,7 @@ async def get_texts_from_audio_by_asr(triton_address, triton_port, dataset_dir, 
     return results
 
 
-def process_audios(input_batch, dataset_dir, triton_address, triton_port, tqdm_bar):
+def process_audios(input_batch, dataset_dir, triton_address, triton_port):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
@@ -64,42 +72,89 @@ def process_audios(input_batch, dataset_dir, triton_address, triton_port, tqdm_b
         )
     )
 
-    tqdm_bar.update(len(input_batch))
-
     return recognized_texts
 
 
 @click.command()
-@click.option("--dataset_path", help="Path to the dataset containing audio files.")
-@click.option("--wer_threshold", type=float, default=0.5, help="WER threshold.")
-@click.option("--cer_threshold", type=float, default=0.5, help="CER threshold.")
+@click.option("--dataset-path", help="Path to the dataset containing audio files.")
 @click.option("--triton_address", default="localhost", help="Address of the Triton Inference Server.")
-@click.option("--triton_port", type=int, default=8000, help="Port of the Triton Inference Server.")
-@click.option("--batch_size", type=int, default=10, help="Batch size for processing audio files.")
+@click.option("--triton-port", type=int, default=8000, help="Port of the Triton Inference Server.")
+@click.option("--batch-size", type=int, default=10, help="Batch size for processing audio files.")
+@click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
+@click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
+@click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
+@click.option("--database-user", type=str, help="Username to use for database authentication", envvar="POSTGRES_USER")
+@click.option(
+    "--database-password", type=str, help="Password to use for database authentication", envvar="POSTGRES_PASSWORD"
+)
+@click.option("--database-name", type=str, help="Name of the database", envvar="POSTGRES_DB")
 @click.option(
     "--n_jobs", type=int, default=-1, help="Number of parallel jobs to use while processing. -1 means to use all cores."
 )
-def process_dataset(dataset_path, wer_threshold, cer_threshold, triton_address, triton_port, batch_size, n_jobs):
-    metadata_path = os.path.join(dataset_path, "metadata.csv")
-    metadata_df = pd.read_csv(metadata_path, sep="|")
+def process_dataset(
+    dataset_path,
+    triton_address,
+    triton_port,
+    batch_size,
+    overwrite: bool,
+    database_address: str,
+    database_port: int,
+    database_user: str,
+    database_password: str,
+    database_name: str,
+    n_jobs,
+):
+    metadata_df = read_metadata_and_calculate_hash(dataset_path, n_jobs=n_jobs)
 
-    assert "path_to_wav" in metadata_df.columns
-    assert "text" in metadata_df.columns
-    assert "speaker_id" in metadata_df.columns
+    engine = create_engine(
+        f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"
+    )
 
-    if not os.path.exists(os.path.join(dataset_path, "metadata_before_ASR.csv")):
-        metadata_df.to_csv(os.path.join(dataset_path, "metadata_before_ASR.csv"), sep="|", index=False)
+    Base.metadata.create_all(engine, checkfirst=True)
 
-    files = metadata_df["path_to_wav"].values
-    status_bar = tqdm(files, total=len(files), desc="Processing audio files")
+    with Session(engine) as session:
+        existing_in_db_hashes_of_audio = session.scalars(select(AudioToASRText.audio_md5_hash)).all()
+
+        samples_to_add = metadata_df[~metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
+        samples_asr_text_info = process_selected_samples(
+            dataframe=samples_to_add,
+            batch_size=batch_size,
+            dataset_path=dataset_path,
+            triton_address=triton_address,
+            triton_port=triton_port,
+            n_jobs=n_jobs,
+        )
+        session.add_all(samples_asr_text_info)
+
+        if overwrite:
+            print("Overwriting others samples")
+            samples_to_update = metadata_df[metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
+            samples_asr_text_info = process_selected_samples(
+                dataframe=samples_to_update,
+                batch_size=batch_size,
+                dataset_path=dataset_path,
+                triton_address=triton_address,
+                triton_port=triton_port,
+                n_jobs=n_jobs,
+            )
+            samples_asr_text_info = [dataclasses.asdict(info) for info in samples_asr_text_info if info is not None]
+            session.execute(update(AudioToASRText), samples_asr_text_info)
+
+        session.commit()
+
+
+def process_selected_samples(
+    dataframe: pd.DataFrame, batch_size: int, dataset_path: str, triton_address: str, triton_port: int, n_jobs: int
+):
+    files = dataframe["path_to_wav"].values
+    status_bar = tqdm(files, total=len(files), desc=f"Processing audio files in batches. (Batch size: {batch_size})")
 
     batches = [files[i : min(i + batch_size, len(files))] for i in range(0, len(files), batch_size)]
 
     list_of_recognized_texts = Parallel(n_jobs=n_jobs, require="sharedmem")(
-        delayed(process_audios)(
+        delayed(update_bar_on_ending(status_bar, batch_size)(process_audios))(
             input_batch=batch,
             dataset_dir=dataset_path,
-            tqdm_bar=status_bar,
             triton_address=triton_address,
             triton_port=triton_port,
         )
@@ -107,37 +162,19 @@ def process_dataset(dataset_path, wer_threshold, cer_threshold, triton_address, 
     )
 
     recognized_texts = {path: text for batch in list_of_recognized_texts for path, text in batch.items()}
+    dataframe["recognized_text"] = dataframe["path_to_wav"].map(recognized_texts)
 
-    metadata_df["recognized_text"] = metadata_df["path_to_wav"].map(recognized_texts)
+    recognized_text_empty_mask = dataframe["recognized_text"].isnull()
+    print(f"Found {sum(recognized_text_empty_mask)} samples for which ASR did not recognized any speech.")
+    dataframe = dataframe[~recognized_text_empty_mask]
 
-    recognized_text_empty_mask = metadata_df["recognized_text"].isnull()
-    print(
-        f"Found {sum(recognized_text_empty_mask)} samples for which ASR did not recognized any speech. Deleting from dataset."
+    tqdm_bar = tqdm(total=len(dataframe), desc="Collecting ASR texts data")
+    samples_asr_text_info = Parallel(n_jobs=n_jobs, require="sharedmem")(
+        delayed(update_bar_on_ending(tqdm_bar)(AudioToASRText))(audio_md5_hash=sample.hash, text=sample.recognized_text)
+        for sample in dataframe.itertuples()
     )
-    metadata_df = metadata_df[~recognized_text_empty_mask]
 
-    original_text_empty_mask = metadata_df["text"].isnull()
-    print(f"Found {sum(original_text_empty_mask)} samples for which there are no texts found. Deleting from dataset.")
-    metadata_df = metadata_df[~original_text_empty_mask]
-
-    metadata_df["wer"] = metadata_df.apply(lambda row: wer(row["text"], row["recognized_text"]), axis=1)
-    metadata_df["cer"] = metadata_df.apply(lambda row: cer(row["text"], row["recognized_text"]), axis=1)
-
-    wer_mask = metadata_df["wer"] >= wer_threshold
-    print(
-        f"Found {sum(wer_mask)} samples for which WER threshold of {wer_threshold:.2f} exceeded. Deleting from dataset."
-    )
-    metadata_df = metadata_df[~wer_mask]
-
-    cer_mask = metadata_df["cer"] >= cer_threshold
-    print(
-        f"Found {sum(cer_mask)} samples for which CER threshold of {cer_threshold:.2f} exceeded. Deleting from dataset."
-    )
-    metadata_df = metadata_df[~cer_mask]
-
-    metadata_df[["path_to_wav", "speaker_id", "text"]].to_csv(
-        os.path.join(dataset_path, "metadata.csv"), sep="|", index=False
-    )
+    return samples_asr_text_info
 
 
 if __name__ == "__main__":
