@@ -1,6 +1,7 @@
 import dataclasses
 from pathlib import Path
 from typing import Dict, List
+import os
 
 import click
 from dotenv import load_dotenv
@@ -18,6 +19,12 @@ load_dotenv()
 
 @click.command("main", context_settings={"show_default": True})
 @click.option("--dataset-path", type=click.Path(exists=True))
+@click.option(
+    "--metadata-path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to .csv file with metadata.",
+    callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
+)
 @click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
@@ -34,6 +41,7 @@ load_dotenv()
 )
 def main(
     dataset_path: str,
+    metadata_path: str,
     overwrite: bool,
     database_address: str,
     database_port: int,
@@ -43,7 +51,7 @@ def main(
     n_jobs: int,
 ):
     dataset_name = Path(dataset_path).stem
-    metadata_df = read_metadata_and_calculate_hash(dataset_path, n_jobs=n_jobs)
+    metadata_df = read_metadata_and_calculate_hash(metadata_path, dataset_path, n_jobs=n_jobs)
 
     engine = create_engine(
         f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"

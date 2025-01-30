@@ -5,7 +5,7 @@
 groups = ["default", "dev", "lint", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:a79018f6fecd0482d16ea7f9d0c07269d2abc95388fa5470bf1f9d67fb74d540"
+content_hash = "sha256:9e997550b2ef520aa2f47cc6716e27df8b089ebf6d861730ebed8b6321210b41"
 
 [[metadata.targets]]
 requires_python = "==3.11.10"
@@ -831,6 +831,17 @@ files = [
 ]
 
 [[package]]
+name = "psycopg2"
+version = "2.9.10"
+requires_python = ">=3.8"
+summary = "psycopg2 - Python-PostgreSQL Database Adapter"
+groups = ["default"]
+marker = "python_full_version == \"3.11.10\""
+files = [
+    {file = "psycopg2-2.9.10.tar.gz", hash = "sha256:12ec0b40b0273f95296233e8750441339298e6a572f7039da5b260e3c8b60e11"},
+]
+
+[[package]]
 name = "pycparser"
 version = "2.22"
 requires_python = ">=3.8"
@@ -951,7 +962,7 @@ name = "pyyaml"
 version = "6.0.2"
 requires_python = ">=3.8"
 summary = "YAML parser and emitter for Python"
-groups = ["dev"]
+groups = ["default", "dev"]
 marker = "python_full_version == \"3.11.10\""
 files = [
     {file = "PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:3ad2a3decf9aaba3d29c8f537ac4b243e36bef957511b4766cb0057d32b0be85"},
@@ -1190,6 +1201,16 @@ files = [
     {file = "SQLAlchemy-2.0.37-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2fa2c0913f02341d25fb858e4fb2031e6b0813494cca1ba07d417674128ce11b"},
     {file = "SQLAlchemy-2.0.37-py3-none-any.whl", hash = "sha256:a8998bf9f8658bd3839cbc44ddbe982955641863da0c1efe5b00c1ab4f5c16b1"},
     {file = "sqlalchemy-2.0.37.tar.gz", hash = "sha256:12b28d99a9c14eaf4055810df1001557176716de0167b91026e648e65229bffb"},
+]
+
+[[package]]
+name = "textgrid"
+version = "1.6.1"
+summary = "Praat TextGrid manipulation."
+groups = ["default"]
+marker = "python_full_version == \"3.11.10\""
+files = [
+    {file = "TextGrid-1.6.1.tar.gz", hash = "sha256:0d3f8d4f511474777ce287d2ecef090573c0e63141aa73c6f400637e1ecaca63"},
 ]
 
 [[package]]

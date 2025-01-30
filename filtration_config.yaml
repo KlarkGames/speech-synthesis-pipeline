@@ -1,0 +1,30 @@
+default:
+  sample_rate: 44100
+  channels: 1
+  duration:
+    min: 1
+    max: 15
+  SNR: 
+    min: null
+    max: null
+  dBFS:
+    min: null
+    max: null
+  CER: 
+    min: null
+    max: null
+  WER: 
+    min: null
+    max: null
+  samples_per_speaker:
+    min: null
+    max: null
+  minutes_per_speaker:
+    min: null
+    max: null
+  text_len_per_duration:
+    min: null
+    max: null
+  use_unknown_speakers: True
+  only_with_ASR_texts: False
+  only_with_Original_texts: False

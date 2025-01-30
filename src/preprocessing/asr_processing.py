@@ -77,6 +77,12 @@ def process_audios(input_batch, dataset_dir, triton_address, triton_port):
 
 @click.command()
 @click.option("--dataset-path", help="Path to the dataset containing audio files.")
+@click.option(
+    "--metadata-path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to .csv file with metadata.",
+    callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
+)
 @click.option("--triton_address", default="localhost", help="Address of the Triton Inference Server.")
 @click.option("--triton-port", type=int, default=8000, help="Port of the Triton Inference Server.")
 @click.option("--batch-size", type=int, default=10, help="Batch size for processing audio files.")
@@ -92,19 +98,20 @@ def process_audios(input_batch, dataset_dir, triton_address, triton_port):
     "--n_jobs", type=int, default=-1, help="Number of parallel jobs to use while processing. -1 means to use all cores."
 )
 def process_dataset(
-    dataset_path,
-    triton_address,
-    triton_port,
-    batch_size,
+    dataset_path: str,
+    metadata_path: str,
+    triton_address: str,
+    triton_port: int,
+    batch_size: int,
     overwrite: bool,
     database_address: str,
     database_port: int,
     database_user: str,
     database_password: str,
     database_name: str,
-    n_jobs,
+    n_jobs: int,
 ):
-    metadata_df = read_metadata_and_calculate_hash(dataset_path, n_jobs=n_jobs)
+    metadata_df = read_metadata_and_calculate_hash(metadata_path, dataset_path, n_jobs=n_jobs)
 
     engine = create_engine(
         f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"

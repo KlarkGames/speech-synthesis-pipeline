@@ -56,8 +56,7 @@ def get_hash_of_file(path_to_file: str) -> str:
     return hashlib.md5(open(path_to_file, "rb").read()).hexdigest()
 
 
-def read_metadata_and_calculate_hash(dataset_path: str, n_jobs=-1) -> pd.DataFrame:
-    path_to_metadata = os.path.join(dataset_path, "metadata.csv")
+def read_metadata_and_calculate_hash(path_to_metadata: str, path_to_dataset: str, n_jobs=-1) -> pd.DataFrame:
     metadata_df = pd.read_csv(path_to_metadata, sep="|").drop_duplicates()
 
     assert "path_to_wav" in metadata_df.columns
@@ -66,7 +65,7 @@ def read_metadata_and_calculate_hash(dataset_path: str, n_jobs=-1) -> pd.DataFra
     if "hash" not in metadata_df.columns:
         tqdm_bar = tqdm(total=len(metadata_df), desc="Getting hashes from audio files")
         metadata_df["hash"] = Parallel(n_jobs=n_jobs, require="sharedmem")(
-            delayed(update_bar_on_ending(tqdm_bar)(get_hash_of_file))(os.path.join(dataset_path, sample.path_to_wav))
+            delayed(update_bar_on_ending(tqdm_bar)(get_hash_of_file))(os.path.join(path_to_dataset, sample.path_to_wav))
             for sample in metadata_df.itertuples()
         )
         metadata_df.to_csv(path_to_metadata, sep="|", index=False)

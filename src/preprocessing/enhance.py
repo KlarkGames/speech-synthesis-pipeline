@@ -90,6 +90,12 @@ def process_audio_file(
 
 @click.command()
 @click.option("--dataset_path", help="Path to processing dataset.")
+@click.option(
+    "--metadata-path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to .csv file with metadata.",
+    callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
+)
 @click.option("--output_path", help="Path where the enhanced dataset will be saved.")
 @click.option(
     "--chunk_duration",
@@ -126,6 +132,7 @@ def process_audio_file(
 )
 def process_dataset(
     dataset_path,
+    metadata_path,
     output_path,
     chunk_duration=30.0,
     chunk_overlap=1.0,
@@ -138,7 +145,7 @@ def process_dataset(
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    metadata_df = pd.read_csv(os.path.join(dataset_path, "metadata.csv"), sep="|")
+    metadata_df = pd.read_csv(metadata_path, sep="|")
 
     files = metadata_df["path_to_wav"].sample(frac=1).values
 

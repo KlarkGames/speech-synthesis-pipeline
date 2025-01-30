@@ -24,6 +24,9 @@ dependencies = [
     "SQLAlchemy>=2.0.37",
     "python-dotenv>=1.0.1",
     "psycopg>=3.2.3",
+    "pyyaml>=6.0.2",
+    "psycopg2>=2.9.10",
+    "textgrid>=1.6.1",
 ]
 
 [dependency-groups]
