@@ -318,7 +318,7 @@ def filter_dataset(
 @click.command()
 @click.option("--dataset-path", type=click.Path(exists=True, file_okay=False), help="Path to dataset.")
 @click.option("--path-to-config", type=click.Path(exists=True, dir_okay=False), help="Path to YAML filtration config.")
-@click.option("--config-name", type=str, help="Name of config in YAML file to use.")
+@click.option("--config-name", type=str, help="Name of config in YAML file to use.", default="default")
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
 @click.option("--database-user", type=str, help="Username to use for database authentication", envvar="POSTGRES_USER")

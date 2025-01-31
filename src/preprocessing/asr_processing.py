@@ -83,7 +83,7 @@ def process_audios(input_batch, dataset_dir, triton_address, triton_port):
     help="Path to .csv file with metadata.",
     callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
 )
-@click.option("--triton_address", default="localhost", help="Address of the Triton Inference Server.")
+@click.option("--triton-address", default="localhost", help="Address of the Triton Inference Server.")
 @click.option("--triton-port", type=int, default=8000, help="Port of the Triton Inference Server.")
 @click.option("--batch-size", type=int, default=10, help="Batch size for processing audio files.")
 @click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
@@ -95,7 +95,7 @@ def process_audios(input_batch, dataset_dir, triton_address, triton_port):
 )
 @click.option("--database-name", type=str, help="Name of the database", envvar="POSTGRES_DB")
 @click.option(
-    "--n_jobs", type=int, default=-1, help="Number of parallel jobs to use while processing. -1 means to use all cores."
+    "--n-jobs", type=int, default=-1, help="Number of parallel jobs to use while processing. -1 means to use all cores."
 )
 def process_dataset(
     dataset_path: str,

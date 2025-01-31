@@ -186,41 +186,41 @@ def create_metadata(speakers: List[SpeakerInfo], text_by_file_name_dict: Dict[st
 
 @click.command("main", context_settings={"show_default": True})
 @click.option(
-    "--dataset_path",
+    "--dataset-path",
     type=click.Path(exists=True),
     required=True,
     help="Path to MLS dataset",
 )
-@click.option("--output_path", type=click.Path(), required=True, help="Path to output directory")
+@click.option("--output-path", type=click.Path(), required=True, help="Path to output directory")
 @click.option(
-    "--change_sample_rate",
+    "--change-sample-rate",
     default=False,
     help="Resample all audiofiles to specified sample rate.",
 )
 @click.option(
-    "--result_sample_rate",
+    "--result-sample-rate",
     default=44100,
     help="Resample all audiofiles to specified sample rate.",
 )
 @click.option(
-    "--n_jobs",
+    "--n-jobs",
     default=-1,
     help="Number of parallel jobs. If set to -1, use all available CPU cores.",
 )
 @click.option(
-    "--cache_dir",
+    "--cache-dir",
     default=".cache",
     help="Directory in output path to store cache files.",
 )
 @click.option(
-    "--n_files",
+    "--n-files",
     default=3600,
     help="Number of files to process. If set to -1, process all files of speaker. "
     + "Mean duration of files is 15s, so if you want to process 1h of speech, set this to 3600. "
     + "If there not enough files, all files will be processed.",
 )
 @click.option(
-    "--cache_every_n_speakers", default=100, help="Number of speakers to be processed before cache is updated."
+    "--cache-every-n-speakers", default=100, help="Number of speakers to be processed before cache is updated."
 )
 def main(
     dataset_path: str,
