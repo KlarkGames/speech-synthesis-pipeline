@@ -52,7 +52,6 @@ def main(
 ):
     dataset_name = Path(dataset_path).stem
     metadata_df = read_metadata_and_calculate_hash(metadata_path, dataset_path, n_jobs=n_jobs)
-    metadata_df = metadata_df.drop_duplicates(subset=["hash"])
 
     engine = create_engine(
         f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"

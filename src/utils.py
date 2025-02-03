@@ -70,4 +70,6 @@ def read_metadata_and_calculate_hash(path_to_metadata: str, path_to_dataset: str
         )
         metadata_df.to_csv(path_to_metadata, sep="|", index=False)
 
+    metadata_df = metadata_df.drop_duplicates(subset=["hash"])
+
     return metadata_df

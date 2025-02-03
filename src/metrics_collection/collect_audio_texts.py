@@ -80,6 +80,7 @@ def get_original_texts_from_selected_samples(dataframe: pd.DataFrame, n_jobs: in
         for sample in dataframe.itertuples()
     )
     samples_text_info = [info for info in samples_text_info if info is not None]
+    return samples_text_info
 
 
 if __name__ == "__main__":

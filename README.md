@@ -323,3 +323,4 @@ default:
 - **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
 - **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
 - **--save-path** - Path where to save metadata Data Frame file. Default: [DATASET_PATH]/filtered_metadata.csv
+- **--include-text** - Is it needed to create "text" column in metadata file.

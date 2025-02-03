@@ -285,7 +285,13 @@ def filter_dataset(
 
     # Apply basic filters
     query = (
-        session.query(AudioToDataset.path_to_file, AudioToDataset.speaker_id, AudioToDataset.audio_md5_hash)
+        session.query(
+            AudioToDataset.path_to_file,
+            AudioToDataset.speaker_id,
+            AudioToDataset.audio_md5_hash,
+            AudioToOriginalText.text,
+            AudioToASRText.text,
+        )
         .join(AudioMetrics, AudioMetrics.audio_md5_hash == AudioToDataset.audio_md5_hash, isouter=True)
         .join(
             TextComparationMetrics, TextComparationMetrics.audio_md5_hash == AudioToDataset.audio_md5_hash, isouter=True
@@ -312,7 +318,7 @@ def filter_dataset(
     filtered_data = query.all()
     session.close()
 
-    return pd.DataFrame(filtered_data, columns=["path_to_wav", "speaker_id", "hash"])
+    return pd.DataFrame(filtered_data, columns=["path_to_wav", "speaker_id", "hash", "original_text", "asr_text"])
 
 
 @click.command()
@@ -334,6 +340,7 @@ def filter_dataset(
     if value
     else os.path.join(context.params["dataset_path"], "filtered_metadata.csv"),
 )
+@click.option("--include-text", type=bool, help='Is it needed to create "text" column in metadata file.', default=False)
 def cli(
     dataset_path: str,
     path_to_config: str,
@@ -344,6 +351,7 @@ def cli(
     database_password: str,
     database_name: str,
     save_path: str,
+    include_text: bool,
 ) -> None:
     filtered_df = filter_dataset(
         path_to_dataset=dataset_path,
@@ -355,6 +363,12 @@ def cli(
         database_password=database_password,
         database_name=database_name,
     )
+
+    if include_text:
+        filtered_df["text"] = filtered_df["original_text"]
+        filtered_df["text"] = filtered_df["text"].fillna(filtered_df["asr_text"])
+        filtered_df = filtered_df.dropna(subset=["text"])
+    filtered_df = filtered_df.drop(columns=["original_text", "asr_text"])
     filtered_df.to_csv(save_path, sep="|", index=False)
 
 
