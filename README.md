@@ -14,6 +14,7 @@
 - [Формирование стандартизированного формата](#формирование-стандартизированного-формата)
   - [Предобработка датасета MLS](#предобработка-датасета-mls)
   - [Предобработка датасета EmoV\_DB](#предобработка-датасета-emov_db)
+  - [Предобработка директории с аудиофайлами](#предобработка-директории-с-аудиофайлами)
 - [Сохранение метаданных о датасетах](#сохранение-метаданных-о-датасетах)
   - [Требуемая структура реляционной базы данных](#требуемая-структура-реляционной-базы-данных)
   - [Сбор аудио метаданных](#сбор-аудио-метаданных)
@@ -70,6 +71,112 @@ python -m src.data.EmoV_DB.preprocess --dataset-path [DATASET_DIRECTORY] --outpu
 - **--change-sample-rate** - Resample all audiofiles to specified sample rate. *Default: False*
 - **--result-sample-rate** - Resample all audiofiles to specified sample rate. *Default: 44100*
 - **--n-jobs** - Number of parallel jobs. If set to -1, use all available CPU cores. *Default: -1*
+
+## Предобработка директории с аудиофайлами
+
+Если имеются неструктурированные аудиофайлы, находящиеся в одной директории, их можно сформировать в датасет следующим скриптом:
+
+```
+python -m src.datasets.audio_folder --folder-path [PATH_TO_DIRECTORY_WITH_AUDIOFILES] --save-path [STRUCTURED_DATASET_SAVE_PATH]
+```
+
+Допустим есть следующий датасет:
+
+```
+raw_audio_path/
+├── audio_1.mp3
+├── some_directory/
+│   ├── audio_2.ogg
+│   └── another_directory/
+│       └── audio_3.flac
+└── and_another_one_directory/
+    └── audio_4.wav
+```
+
+Обычный запуск скрипта создаст следующую структуру:
+
+```
+dataset_path/
+├── wavs/
+│   └── audio_1.wav
+├── speaker_0/
+│   └── wavs/
+│       ├── audio_2.wav
+│       └── another_directory/
+│           └── audio_3.wav
+├── speaker_1/
+│   └── wavs/
+│       └── audio_4.wav
+└── metadata.csv
+```
+
+`metadata.csv` будет содержать следующую информацию:
+
+| path_to_wav                                  | speaker_id |
+| -------------------------------------------- | ---------- |
+| wavs/audio_1.wav                             | -1         |
+| speaker_0/wavs/audio_2.wav                   | 0          |
+| speaker_0/wavs/another_directory/audio_3.wav | 0          |
+| speaker_1/wavs/audio_4.wav                   | 1          |
+
+Если указать флаг `--unknown-speaker` добавит все аудиофайлы со speaker_id -1:
+
+```
+dataset_path/
+├── wavs/
+│   ├── audio_1.wav
+│   ├── some_directory/
+│   │   ├── audio_2.wav
+│   │   └── another_directory/
+│   │       └── audio_3.wav
+│   └── and_another_one_directory/
+│       └── audio_4.wav
+└── metadata.csv
+```
+
+`metadata.csv` будет содержать следующую информацию:
+
+| path_to_wav                                       | speaker_id |
+| ------------------------------------------------- | ---------- |
+| wavs/audio_1.wav                                  | -1         |
+| wavs/some_directory/audio_2.wav                   | -1         |
+| wavs/some_directory/another_directory/audio_3.wav | -1         |
+| wavs/and_another_one_directory/audio_4.wav        | -1         |
+
+Если указать флаг `--single-speaker` все аудиофайлы будут считаться от одного спикера:
+
+```
+dataset_path/
+├── speaker_0/
+│ ├── wavs/
+│ │   ├── audio_1.wav
+│ │   ├── some_directory/
+│ │   │   ├── audio_2.wav
+│ │   │   └── another_directory/
+│ │   │       └── audio_3.wav
+│ │   └── and_another_one_directory/
+│ │       └── audio_4.wav
+└── metadata.csv
+```
+
+`metadata.csv` будет содержать следующую информацию:
+
+| path_to_wav                                       | speaker_id |
+| ------------------------------------------------- | ---------- |
+| wavs/audio_1.wav                                  | 0          |
+| wavs/some_directory/audio_2.wav                   | 0          |
+| wavs/some_directory/another_directory/audio_3.wav | 0          |
+| wavs/and_another_one_directory/audio_4.wav        | 0          |
+
+**It's imposible** to specify both `--single-speaker` and `--unknown-speaker` flags. You'll get ValueError.
+
+Все параметры указаны ниже:
+- **--folder-path** - Path to the folder with audio files.
+- **--single-speaker** - Is all files in this folder belongs to one speaker? Default: False
+- **--unknown-speaker** - Is all files in this folder belongs to unknown speaker? Default: False
+- **--overwrite** - Is it needed to overwrite existing files? Default: False
+- **--save-path** - Path where to save formated dataset.
+- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
 
 # Сохранение метаданных о датасетах
 
