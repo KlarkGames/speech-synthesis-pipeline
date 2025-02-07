@@ -89,36 +89,42 @@ def process_audio_file(
 
 
 @click.command()
-@click.option("--dataset_path", help="Path to processing dataset.")
-@click.option("--output_path", help="Path where the enhanced dataset will be saved.")
+@click.option("--dataset-path", help="Path to processing dataset.")
 @click.option(
-    "--chunk_duration",
+    "--metadata-path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to .csv file with metadata.",
+    callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
+)
+@click.option("--output-path", help="Path where the enhanced dataset will be saved.")
+@click.option(
+    "--chunk-duration",
     type=float,
     default=30.0,
     show_default=True,
     help="The duration in seconds by which the enhancer will divide your sample.",
 )
 @click.option(
-    "--chunk_overlap",
+    "--chunk-overlap",
     type=float,
     default=1.0,
     show_default=True,
     help="The duration of overlap between adjacent samples. Does not enlarge chunk_duration.",
 )
 @click.option(
-    "--model_name", default="enhancer_ensemble", show_default=True, help="The name of Triton Inference Server model."
+    "--model-name", default="enhancer_ensemble", show_default=True, help="The name of Triton Inference Server model."
 )
 @click.option(
-    "--batch_size",
+    "--batch-size",
     type=int,
     default=10,
     show_default=True,
     help="The size of the batch of async tasks every job will process",
 )
-@click.option("--triton_address", help="The Triton Inference Server address")
-@click.option("--triton_port", type=int, help="The Triton Inference Server port")
+@click.option("--triton-address", help="The Triton Inference Server address")
+@click.option("--triton-port", type=int, help="The Triton Inference Server port")
 @click.option(
-    "--n_jobs",
+    "--n-jobs",
     type=int,
     default=-1,
     show_default=True,
@@ -126,6 +132,7 @@ def process_audio_file(
 )
 def process_dataset(
     dataset_path,
+    metadata_path,
     output_path,
     chunk_duration=30.0,
     chunk_overlap=1.0,
@@ -138,7 +145,7 @@ def process_dataset(
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    metadata_df = pd.read_csv(os.path.join(dataset_path, "metadata.csv"), sep="|")
+    metadata_df = pd.read_csv(metadata_path, sep="|")
 
     files = metadata_df["path_to_wav"].sample(frac=1).values
 

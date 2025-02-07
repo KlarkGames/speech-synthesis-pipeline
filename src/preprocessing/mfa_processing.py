@@ -1,77 +1,194 @@
+import dataclasses
+import json
 import os
 import re
+import subprocess
 from typing import List
 
 import click
 import pandas as pd
-from joblib import Parallel, cpu_count, delayed
+from dotenv import load_dotenv
+from joblib import Parallel, delayed
+from sqlalchemy import create_engine, select, update
+from sqlalchemy.orm import Session
 from textgrid import TextGrid
 from tqdm import tqdm
 
+from src.metrics_collection.models import AudioToMFAData, AudioToOriginalText, Base
+from src.utils import read_metadata_and_calculate_hash, update_bar_on_ending
+
+load_dotenv()
+
 
 @click.command("main", context_settings={"show_default": True})
-@click.argument("input_path", type=click.Path(exists=True))
+@click.option("--dataset-path", type=click.Path(exists=True))
 @click.option(
-    "--n_jobs",
+    "--metadata-path",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to .csv file with metadata.",
+    callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
+)
+@click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
+@click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
+@click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
+@click.option("--database-user", type=str, help="Username to use for database authentication", envvar="POSTGRES_USER")
+@click.option(
+    "--database-password", type=str, help="Password to use for database authentication", envvar="POSTGRES_PASSWORD"
+)
+@click.option("--database-name", type=str, help="Name of the database", envvar="POSTGRES_DB")
+@click.option(
+    "--n-jobs",
     type=click.INT,
     help="Number of parallel jobs to use while processing. -1 means to use all cores.",
     default=-1,
 )
-@click.option(
-    "--comma_duration",
-    type=click.FloatRange(min=0, max_open=True),
-    help="Duration of pause which will be indicated with comma.",
-    default=0.15,
-)
-@click.option(
-    "--period_duration",
-    type=click.FloatRange(min=0, max_open=True),
-    help="Duration of pause which will be indicated with period.",
-    default=0.3,
-)
-def main(input_path: str, n_jobs: int, comma_duration: float, period_duration: float) -> None:
-    if n_jobs == -1:
-        n_jobs = cpu_count()
+def main(
+    dataset_path: str,
+    metadata_path: str,
+    overwrite: bool,
+    database_address: str,
+    database_port: int,
+    database_user: str,
+    database_password: str,
+    database_name: str,
+    n_jobs: int,
+) -> None:
+    metadata_df = read_metadata_and_calculate_hash(metadata_path, dataset_path, n_jobs=n_jobs)
 
-    metadata_path = os.path.join(input_path, "metadata.csv")
-    metadata_df = pd.read_csv(metadata_path, sep="|")
+    engine = create_engine(
+        f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"
+    )
 
-    if not os.path.exists(os.path.join(input_path, "metadata_before_MFA.csv")):
-        metadata_df.to_csv(os.path.join(input_path, "metadata_before_MFA.csv"), sep="|", index=False)
+    Base.metadata.create_all(engine, checkfirst=True)
 
     os.system("mfa model download acoustic english_us_arpa")
     os.system("mfa model download dictionary english_us_arpa")
 
-    directories_to_process = get_list_of_directories(metadata_df["path_to_wav"])
+    with Session(engine) as session:
+        existing_in_db_hashes_of_audio = session.scalars(select(AudioToMFAData.audio_md5_hash)).all()
 
-    progress_bar = tqdm(total=len(metadata_df))
-    for directory in directories_to_process:
-        processing_files = metadata_df[metadata_df["path_to_wav"].str.startswith(directory)]
-        save_texts_to_txt(dataset_path=input_path, metadata=processing_files, n_jobs=n_jobs)
+        samples_to_add = metadata_df[~metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
 
-        wavs_directory_path = os.path.join(input_path, directory)
-        txt_directory_path = wavs_directory_path.replace("wavs", "txts")
-        text_grid_directory_path = wavs_directory_path.replace("wavs", "text_grids")
+        if "text" not in samples_to_add.columns:
+            id_to_text_dict = {
+                sample.audio_md5_hash: sample.text
+                for sample in session.execute(
+                    (select(AudioToOriginalText).where(AudioToOriginalText.audio_md5_hash.in_(samples_to_add["hash"])))
+                ).all()
+            }
 
-        os.system(
-            f"mfa align --clean --single_speaker --include_original_text --num_jobs {n_jobs} "
-            + f"--audio_directory {wavs_directory_path} {txt_directory_path} english_us_arpa english_us_arpa {text_grid_directory_path}"
+            samples_to_add["text"] = samples_to_add["hash"].map(id_to_text_dict)
+
+        tqdm_bar = tqdm(total=len(samples_to_add), desc="Processing samples by MFA.")
+        samples_to_add["mfa_textgrid_data"] = Parallel(n_jobs=n_jobs, require="sharedmem")(
+            delayed(update_bar_on_ending(tqdm_bar)(allign_sample))(
+                path_to_audio=os.path.join(dataset_path, sample.path_to_wav),
+                temp_directory=os.path.join(dataset_path, "temp", str(i)),
+                text=sample.text,
+            )
+            for i, sample in enumerate(samples_to_add.itertuples())
         )
 
-        metadata_df.loc[metadata_df["path_to_wav"].str.startswith(directory), "text"] = process_text_grid_files(
-            dataset_path=input_path,
-            metadata=processing_files,
-            comma_duration=comma_duration,
-            period_duration=period_duration,
-            n_jobs=n_jobs,
+        unprocessed_samples_mask = samples_to_add["mfa_textgrid_data"].isnull()
+        print(f"{len(samples_to_add[unprocessed_samples_mask])} samples was not processed.")
+        samples_to_add = samples_to_add[~unprocessed_samples_mask]
+
+        tqdm_bar = tqdm(total=len(samples_to_add), desc="Collecting MFA textgrids data.")
+        samples_mfa_textgrid_info = Parallel(n_jobs=n_jobs, require="sharedmem")(
+            delayed(update_bar_on_ending(tqdm_bar)(AudioToMFAData))(
+                audio_md5_hash=sample.hash, mfa_textgrid_data=sample.mfa_textgrid_data
+            )
+            for sample in samples_to_add.itertuples()
+        )
+        session.add_all(samples_mfa_textgrid_info)
+
+        if overwrite:
+            samples_to_update = metadata_df[metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
+
+            if "text" not in samples_to_add.columns:
+                id_to_text_dict = {
+                    sample.audio_md5_hash: sample.text
+                    for sample in session.execute(
+                        (
+                            select(AudioToOriginalText).where(
+                                AudioToOriginalText.audio_md5_hash.in_(samples_to_add["hash"])
+                            )
+                        )
+                    ).all()
+                }
+
+                samples_to_update["text"] = samples_to_update["hash"].map(id_to_text_dict)
+
+            tqdm_bar = tqdm(total=len(samples_to_update), desc="Processing samples by MFA. (Overwrite)")
+            samples_to_update["mfa_textgrid_data"] = Parallel(n_jobs=n_jobs, require="sharedmem")(
+                delayed(update_bar_on_ending(tqdm_bar)(allign_sample))(
+                    path_to_audio=os.path.join(dataset_path, sample.path_to_wav),
+                    temp_directory=os.path.join(dataset_path, "temp", str(i)),
+                    text=sample.text,
+                )
+                for i, sample in enumerate(samples_to_update.itertuples())
+            )
+
+            unprocessed_samples_mask = samples_to_update["mfa_textgrid_data"].isnull()
+            print(f"{len(samples_to_update[unprocessed_samples_mask])} samples was not processed.")
+            samples_to_update = samples_to_update[~unprocessed_samples_mask]
+
+            tqdm_bar = tqdm(total=len(samples_to_update), desc="Collecting MFA textgrids data. (Overwrite)")
+            samples_mfa_textgrid_info = Parallel(n_jobs=n_jobs, require="sharedmem")(
+                delayed(update_bar_on_ending(tqdm_bar)(AudioToMFAData))(
+                    audio_md5_hash=sample.hash, mfa_textgrid_data=sample.mfa_textgrid_data
+                )
+                for sample in samples_to_update.itertuples()
+            )
+            samples_asr_text_info = [dataclasses.asdict(info) for info in samples_mfa_textgrid_info if info is not None]
+            session.execute(update(AudioToMFAData), samples_asr_text_info)
+
+        session.commit()
+
+
+def allign_sample(path_to_audio: str, temp_directory: str, text: str) -> str:
+    text_path = path_to_audio.replace("/wavs/", "/txts/").replace(".wav", ".txt")
+    save_text(text_path, text)
+
+    textgrid_path = path_to_audio.replace("/wavs/", "/text_grids/").replace(".wav", ".TextGrid")
+
+    try:
+        subprocess.check_output(
+            f"mfa align_one --clean -q --num_jobs 1 --temporary_directory {temp_directory} --profile {temp_directory} {path_to_audio} {text_path} english_us_arpa english_us_arpa {textgrid_path}",
+            shell=True,
+            stderr=subprocess.DEVNULL,
         )
 
-        os.system(f"rm -rf {txt_directory_path} {text_grid_directory_path}")
+    except Exception:
+        if os.path.isfile(textgrid_path):
+            print("Exception occurred but .TextGrid file created.")
+        else:
+            print("Exception occurred and .TextGrid file was faild to create.")
+            return None
 
-        progress_bar.update(len(processing_files))
+    try:
+        text_grid = TextGrid.fromFile(textgrid_path)
+    except FileNotFoundError:
+        print(
+            f"File {textgrid_path} was not found. It might be because corresponding .wav file "
+            + "has mismatch with text provided in metadata.csv. MFA does not create .TextGrid files in "
+            + "this scenario. Sample skipped."
+        )
+        return None
 
-    metadata_df.drop(metadata_df[metadata_df["text"] == ""].index)
-    metadata_df.to_csv(metadata_path, sep="|", index=False)
+    word_tier = text_grid[0]
+    data = [
+        {
+            "text": interval.mark,
+            "min_time": interval.minTime,
+            "max_time": interval.maxTime,
+            "duration": interval.duration(),
+        }
+        for interval in word_tier
+    ]
+
+    json_dump = json.dumps(data)
+    return json_dump
 
 
 def process_text_grid_files(
