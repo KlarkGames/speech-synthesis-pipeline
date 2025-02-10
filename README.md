@@ -148,25 +148,25 @@ dataset_path/
 ```
 dataset_path/
 ├── speaker_0/
-│ ├── wavs/
-│ │   ├── audio_1.wav
-│ │   ├── some_directory/
-│ │   │   ├── audio_2.wav
-│ │   │   └── another_directory/
-│ │   │       └── audio_3.wav
-│ │   └── and_another_one_directory/
-│ │       └── audio_4.wav
+│   └── wavs/
+│       ├── audio_1.wav
+│       ├── some_directory/
+│       │   ├── audio_2.wav
+│       │   └── another_directory/
+│       │       └── audio_3.wav
+│       └── and_another_one_directory/
+│           └── audio_4.wav
 └── metadata.csv
 ```
 
 `metadata.csv` будет содержать следующую информацию:
 
-| path_to_wav                                       | speaker_id |
-| ------------------------------------------------- | ---------- |
-| wavs/audio_1.wav                                  | 0          |
-| wavs/some_directory/audio_2.wav                   | 0          |
-| wavs/some_directory/another_directory/audio_3.wav | 0          |
-| wavs/and_another_one_directory/audio_4.wav        | 0          |
+| path_to_wav                                                 | speaker_id |
+| ----------------------------------------------------------- | ---------- |
+| speaker_0/wavs/audio_1.wav                                  | 0          |
+| speaker_0/wavs/some_directory/audio_2.wav                   | 0          |
+| speaker_0/wavs/some_directory/another_directory/audio_3.wav | 0          |
+| speaker_0/wavs/and_another_one_directory/audio_4.wav        | 0          |
 
 **It's imposible** to specify both `--single-speaker` and `--unknown-speaker` flags. You'll get ValueError.
 
