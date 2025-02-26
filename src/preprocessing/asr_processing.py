@@ -1,6 +1,29 @@
+"""
+Automatic Speech Recognition (ASR) Processing Pipeline
+
+This module provides a CLI for batch processing audio files through an ASR model using Triton Inference Server.
+It handles both local filesystem and LakeFS/S3 storage, with parallel processing capabilities and database integration
+to track processing results.
+
+Key Features:
+- Processes audio files in parallel batches using Triton Inference Server
+- Supports local and cloud storage via LakeFS/S3
+- Maintains processing state in PostgreSQL database
+- Generates text transcripts and stores them in appropriate storage
+- Provides idempotent processing with overwrite capability
+
+CLI Commands:
+    local: Process audio files from local filesystem
+    s3: Process audio files from LakeFS/S3 storage
+
+Example usage:
+    python script.py local --dataset-path ./audio_data \
+        --database-address localhost --database-port 5432 \
+        --database-user postgres --database-password secret
+"""
+
 import asyncio
 import dataclasses
-import os
 
 import click
 import numpy as np
@@ -10,63 +33,96 @@ from joblib import Parallel, delayed
 from pydub import AudioSegment
 from pytriton.client import AsyncioModelClient
 from sqlalchemy import create_engine, select, update
+from sqlalchemy.engine.base import Engine
 from sqlalchemy.orm import Session
 from tqdm import tqdm
 
+from src.data_managers import AbstractFileSystemManager, LakeFSFileSystemManager, LocalFileSystemManager
 from src.metrics_collection.models import AudioToASRText, Base
 from src.utils import read_metadata_and_calculate_hash, update_bar_on_ending
 
 load_dotenv()
 
 
-async def get_texts_from_audio_by_asr(triton_address, triton_port, dataset_dir, input_batch):
+async def get_texts_from_audio_by_asr(triton_address, triton_port, file_system_manager, input_batch):
+    """Process audio batch through ASR model and save recognized texts.
+
+    Args:
+        - triton_address: Triton Inference Server host address
+        - triton_port: Triton Inference Server port number
+        - file_system_manager: File system manager for input/output operations
+        - input_batch: List of audio file paths to process
+
+    Returns:
+        dict: Mapping of audio file paths to their recognized texts
+
+    Note:
+        - Skips processing if text file already exists
+        - Converts audio to mono 16kHz format before processing
+        - Stores results as UTF-8 encoded text files
+        - Uses async TaskGroup for concurrent inference requests
+    """
+
     results = {}
-    pending_responces = {}
+    pending_responses = {}
 
     client = AsyncioModelClient(f"{triton_address}:{triton_port}", "ensemble_english_stt", inference_timeout_s=600)
 
     async with asyncio.TaskGroup() as tg:
         for input_file in input_batch:
-            input_path = os.path.join(dataset_dir, input_file)
-            txt_path = input_path.replace("/wavs", "/asr_recognized_texts").replace(".wav", ".txt")
+            txt_path = input_file.replace("/wavs", "/asr_recognized_texts").replace(".wav", ".txt")
 
-            if os.path.exists(txt_path):
-                with open(txt_path, "r", encoding="UTF-8") as text_file:
-                    text = text_file.read()
+            if file_system_manager.exists(txt_path):
+                with file_system_manager.get_buffered_reader(txt_path) as text_file:
+                    text = text_file.read().decode("UTF-8")
                 results[input_file] = text
             else:
-                audio = AudioSegment.from_wav(input_path).set_channels(1)
-                audio = audio.set_frame_rate(16000)
-                audio_data = np.array(audio.get_array_of_samples(), dtype=np.float64)
+                with file_system_manager.get_buffered_reader(input_file) as audio_file:
+                    audio = AudioSegment.from_wav(audio_file).set_channels(1)
+                    audio = audio.set_frame_rate(16000)
+                    audio_data = np.array(audio.get_array_of_samples(), dtype=np.float64)
 
-                result = tg.create_task(client.infer_sample(audio_signal=audio_data))
-                pending_responces[input_file] = result  # .tolist()[0]
+                    result = tg.create_task(client.infer_sample(audio_signal=audio_data))
+                    pending_responses[input_file] = result
 
     await client.close()
 
-    for input_file, responce in pending_responces.items():
-        input_path = os.path.join(dataset_dir, input_file)
-        txt_path = input_path.replace("/wavs", "/asr_recognized_texts").replace(".wav", ".txt")
+    for input_file, response in pending_responses.items():
+        txt_path = input_file.replace("/wavs", "/asr_recognized_texts").replace(".wav", ".txt")
 
-        text = responce.result()["decoded_texts"].decode("UTF-8")
+        text = response.result()["decoded_texts"].decode("UTF-8")
 
-        os.makedirs(os.path.dirname(txt_path), exist_ok=True)
-        with open(txt_path, "w", encoding="UTF-8") as text_file:
-            text_file.write(text)
+        with file_system_manager.get_buffered_writer(txt_path) as text_file:
+            text_file.write(text.encode("UTF-8"))
 
         results[input_file] = text
 
     return results
 
 
-def process_audios(input_batch, dataset_dir, triton_address, triton_port):
+def process_audios(input_batch, file_system_manager, triton_address, triton_port):
+    """Orchestrate async processing of audio batch through ASR model.
+
+    Args:
+        - input_batch: List of audio file paths to process
+        - file_system_manager: File system manager for input/output
+        - triton_address: Triton server address
+        - triton_port: Triton server port
+
+    Returns:
+        dict: Recognized texts mapping from audio paths to transcripts
+
+    Note:
+        Creates new event loop for async processing
+    """
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
     recognized_texts = loop.run_until_complete(
         get_texts_from_audio_by_asr(
             input_batch=input_batch,
-            dataset_dir=dataset_dir,
+            file_system_manager=file_system_manager,
             triton_address=triton_address,
             triton_port=triton_port,
         )
@@ -75,17 +131,7 @@ def process_audios(input_batch, dataset_dir, triton_address, triton_port):
     return recognized_texts
 
 
-@click.command()
-@click.option("--dataset-path", help="Path to the dataset containing audio files.")
-@click.option(
-    "--metadata-path",
-    type=click.Path(exists=True, dir_okay=False),
-    help="Path to .csv file with metadata.",
-    callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
-)
-@click.option("--triton-address", default="localhost", help="Address of the Triton Inference Server.")
-@click.option("--triton-port", type=int, default=8000, help="Port of the Triton Inference Server.")
-@click.option("--batch-size", type=int, default=10, help="Batch size for processing audio files.")
+@click.group()
 @click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
@@ -97,12 +143,12 @@ def process_audios(input_batch, dataset_dir, triton_address, triton_port):
 @click.option(
     "--n-jobs", type=int, default=-1, help="Number of parallel jobs to use while processing. -1 means to use all cores."
 )
-def process_dataset(
-    dataset_path: str,
-    metadata_path: str,
-    triton_address: str,
-    triton_port: int,
-    batch_size: int,
+@click.option("--triton-address", default="localhost", help="Address of the Triton Inference Server.")
+@click.option("--triton-port", type=int, default=8000, help="Port of the Triton Inference Server.")
+@click.option("--batch-size", type=int, default=10, help="Batch size for processing audio files.")
+@click.pass_context
+def cli(
+    context: click.Context,
     overwrite: bool,
     database_address: str,
     database_port: int,
@@ -110,12 +156,130 @@ def process_dataset(
     database_password: str,
     database_name: str,
     n_jobs: int,
+    triton_address: str,
+    triton_port: int,
+    batch_size: int,
 ):
-    metadata_df = read_metadata_and_calculate_hash(metadata_path, dataset_path, n_jobs=n_jobs)
+    """Main CLI entry point for ASR processing pipeline.
+
+    Configures database connection, processing parameters, and Triton settings.
+    """
+
+    context.ensure_object(dict)
+
+    context.obj["overwrite"] = overwrite
+    context.obj["n_jobs"] = n_jobs
 
     engine = create_engine(
         f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"
     )
+    context.obj["engine"] = engine
+
+    context.obj["triton_address"] = triton_address
+    context.obj["triton_port"] == triton_port
+    context.obj["batch_size"] == batch_size
+
+
+@cli.command()
+@click.option("--dataset-path", type=click.Path(exists=True), help="Path to dataset")
+@click.pass_context
+def local(context: click.Context, dataset_path: str):
+    """Process audio files from local filesystem.
+
+    Args:
+        dataset_path: Local directory containing audio files and metadata.csv
+
+    Requires:
+        Metadata CSV with 'path_to_wav' column pointing to audio files
+    """
+
+    file_system_manager = LocalFileSystemManager(dataset_path)
+
+    process_dataset(
+        file_system_manager=file_system_manager,
+        engine=context.obj["engine"],
+        overwrite=context.obj["overwrite"],
+        n_jobs=context.obj["n_jobs"],
+        triton_address=context.obj["triton_address"],
+        triton_port=context.obj["triton_port"],
+        batch_size=context.obj["batch_size"],
+    )
+
+
+@cli.command()
+@click.option("--LakeFS-address", type=str, help="LakeFS address", envvar="LAKEFS_ADDRESS")
+@click.option("--LakeFS-port", type=str, help="LakeFS port", envvar="LAKEFS_PORT")
+@click.option("--ACCESS-KEY-ID", type=str, help="Access key id of LakeFS", envvar="LAKEFS_ACCESS_KEY_ID")
+@click.option("--SECRET-KEY", type=str, help="Secret key of LakeFS", envvar="LAKEFS_SECRET_KEY")
+@click.option("--repository-name", type=str, help="Name of LakeFS repository")
+@click.option("--branch-name", type=str, help="Name of the branch.", default="main")
+@click.pass_context
+def s3(
+    context: click.Context,
+    lakefs_address: str,
+    lakefs_port: str,
+    access_key_id: str,
+    secret_key: str,
+    repository_name: str,
+    branch_name: str,
+):
+    """Process audio files from LakeFS/S3 storage.
+
+    Requires LakeFS credentials and repository configuration.
+    """
+
+    file_system_manager = LakeFSFileSystemManager(
+        lakefs_address=lakefs_address,
+        lakefs_port=lakefs_port,
+        lakefs_ACCESS_KEY=access_key_id,
+        lakefs_SECRET_KEY=secret_key,
+        lakefs_repository_name=repository_name,
+        lakefs_branch_name=branch_name,
+    )
+
+    process_dataset(
+        file_system_manager=file_system_manager,
+        engine=context.obj["engine"],
+        overwrite=context.obj["overwrite"],
+        n_jobs=context.obj["n_jobs"],
+        triton_address=context.obj["triton_address"],
+        triton_port=context.obj["triton_port"],
+        batch_size=context.obj["batch_size"],
+    )
+
+
+def process_dataset(
+    file_system_manager: AbstractFileSystemManager,
+    engine: Engine,
+    overwrite: bool,
+    n_jobs: int,
+    triton_address: str,
+    triton_port: int,
+    batch_size: int,
+):
+    """Main processing workflow for ASR pipeline.
+
+    Args:
+        - file_system_manager: Storage manager for audio/text files
+        - engine: SQLAlchemy database engine
+        - overwrite: Flag to regenerate existing entries
+        - n_jobs: Number of parallel processing jobs
+        - triton_address: Triton server address
+        - triton_port: Triton server port
+        - batch_size: Number of files per processing batch
+
+    Workflow:
+        1. Load and validate metadata with audio hashes
+        2. Create database schema if missing
+        3. Process new samples and add to database
+        4. Optionally overwrite existing entries
+        5. Commit all changes to database
+    """
+
+    metadata_path = "metadata.csv"
+
+    with file_system_manager.get_buffered_reader(metadata_path) as metadata_reader:
+        metadata_df = read_metadata_and_calculate_hash(metadata_reader, file_system_manager, n_jobs=n_jobs)
 
     Base.metadata.create_all(engine, checkfirst=True)
 
@@ -125,8 +289,8 @@ def process_dataset(
         samples_to_add = metadata_df[~metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
         samples_asr_text_info = process_selected_samples(
             dataframe=samples_to_add,
+            file_system_manager=file_system_manager,
             batch_size=batch_size,
-            dataset_path=dataset_path,
             triton_address=triton_address,
             triton_port=triton_port,
             n_jobs=n_jobs,
@@ -138,8 +302,8 @@ def process_dataset(
             samples_to_update = metadata_df[metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
             samples_asr_text_info = process_selected_samples(
                 dataframe=samples_to_update,
+                file_system_manager=file_system_manager,
                 batch_size=batch_size,
-                dataset_path=dataset_path,
                 triton_address=triton_address,
                 triton_port=triton_port,
                 n_jobs=n_jobs,
@@ -151,8 +315,32 @@ def process_dataset(
 
 
 def process_selected_samples(
-    dataframe: pd.DataFrame, batch_size: int, dataset_path: str, triton_address: str, triton_port: int, n_jobs: int
+    dataframe: pd.DataFrame,
+    file_system_manager: AbstractFileSystemManager,
+    batch_size: int,
+    triton_address: str,
+    triton_port: int,
+    n_jobs: int,
 ):
+    """Process selected audio samples and prepare database records.
+
+    Args:
+        - dataframe: DataFrame containing audio metadata
+        - file_system_manager: Storage manager for audio files
+        - batch_size: Number of files per processing batch
+        - triton_address: Triton server address
+        - triton_port: Triton server port
+        - n_jobs: Number of parallel jobs
+
+    Returns:
+        list: AudioToASRText objects ready for database insertion
+
+    Note:
+        - Uses parallel processing with progress tracking
+        - Filters out samples with empty ASR results
+        - Converts results to database model instances
+    """
+
     files = dataframe["path_to_wav"].values
     status_bar = tqdm(files, total=len(files), desc=f"Processing audio files in batches. (Batch size: {batch_size})")
 
@@ -161,7 +349,7 @@ def process_selected_samples(
     list_of_recognized_texts = Parallel(n_jobs=n_jobs, require="sharedmem")(
         delayed(update_bar_on_ending(status_bar, batch_size)(process_audios))(
             input_batch=batch,
-            dataset_dir=dataset_path,
+            file_system_manager=file_system_manager,
             triton_address=triton_address,
             triton_port=triton_port,
         )
@@ -172,7 +360,7 @@ def process_selected_samples(
     dataframe["recognized_text"] = dataframe["path_to_wav"].map(recognized_texts)
 
     recognized_text_empty_mask = dataframe["recognized_text"].isnull()
-    print(f"Found {sum(recognized_text_empty_mask)} samples for which ASR did not recognized any speech.")
+    print(f"Found {sum(recognized_text_empty_mask)} samples for which ASR did not recognize any speech.")
     dataframe = dataframe[~recognized_text_empty_mask]
 
     tqdm_bar = tqdm(total=len(dataframe), desc="Collecting ASR texts data")
@@ -185,4 +373,4 @@ def process_selected_samples(
 
 
 if __name__ == "__main__":
-    process_dataset()
+    cli()

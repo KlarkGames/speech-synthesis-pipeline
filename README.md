@@ -15,6 +15,10 @@
   - [Предобработка датасета MLS](#предобработка-датасета-mls)
   - [Предобработка датасета EmoV\_DB](#предобработка-датасета-emov_db)
   - [Предобработка директории с аудиофайлами](#предобработка-директории-с-аудиофайлами)
+- [Работа с объектным хранилищем S3 и LakeFS](#работа-с-объектным-хранилищем-s3-и-lakefs)
+  - [Конфигурация](#конфигурация)
+  - [Загрузка данных](#загрузка-данных)
+    - [Загрузка любой директории](#загрузка-любой-директории)
 - [Сохранение метаданных о датасетах](#сохранение-метаданных-о-датасетах)
   - [Требуемая структура реляционной базы данных](#требуемая-структура-реляционной-базы-данных)
   - [Сбор аудио метаданных](#сбор-аудио-метаданных)
@@ -178,6 +182,33 @@ dataset_path/
 - **--save-path** - Path where to save formated dataset.
 - **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
 
+# Работа с объектным хранилищем S3 и LakeFS
+
+## Конфигурация
+
+Данный проект позволяет использовать объектные хранилища для сохранения датасетов. Для возиожности версионирования данных предлагается использовать поверх объектного хранилища LakeFS. Многие скрипты поддерживают работу с LakeFS с помощью бибилиотеки [`lakefs-spec`](https://github.com/aai-institute/lakefs-spec).
+
+Все скрипты, работающие с LakeFS прмнмиают следующй набор параметров:
+
+```
+LAKEFS_ADDRESS=http://[YOUR_IP_ADDRESS]
+LAKEFS_PORT=[YOUR_LAKEFS_PORT]
+LAKEFS_ACCESS_KEY_ID=[YOUR_ACCESS_KEY_ID]
+LAKEFS_SECRET_KEY=[YOUR_SACRET_KEY]
+```
+
+Все эти параметры можно указать в соответствующих CLI аргументах, но чтобы этого не делать постоянно - рекомендуется прописать эти параметры в `.env` файле.
+
+## Загрузка данных
+
+### Загрузка любой директории
+
+Для возможности загрузки любых файлов можно воспользоваться или [lakefsclt](https://docs.lakefs.io/reference/cli.html), или скриптом `src/datasets/load_diretory_to_lakefs.py`
+
+```
+python -m src.datasets.load_directory_to_lakefs --path [PATH_TO_YOUR_DIRECTORY] --repository-name [NAME_OF_YOUR_REPOSITORY]
+```
+
 # Сохранение метаданных о датасетах
 
 ## Требуемая структура реляционной базы данных
@@ -201,7 +232,7 @@ POSTGRES_ADDRESS=localhost
 Для того, чтобы собрать метаданные с стандартизированного датасета, воспользуйтесь следующей командой:
 
 ```
-python -m src.metrics_collection.collect_audio_metrics --dataset-path [PATH_TO_DATASET]
+python -m src.metrics_collection.collect_audio_metrics local --dataset-path [PATH_TO_DATASET]
 ```
 
 Скрипт пробежит по всем файлам, которые не были добавлены в базу данных ранее, и сохранит их аудио метаданные. Так же скрипт запишет информацию о пренадлежности файлов к добавляемому датасету.
@@ -209,15 +240,27 @@ python -m src.metrics_collection.collect_audio_metrics --dataset-path [PATH_TO_D
 Скрипт высчитывает хеш файлов в качестве идентификатора, что гарантирует, что даже если файл был добавлен в несколько датасетов, при обработке каждого из них файл будет обработан единажды (Если конечно не прописать `--overwrite`, что заставит скрипт перезаписать информацию в БД).
 
 Все параметры указаны ниже:
-- **--dataset-path** - Path to data to process.
-- **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+
+- **Общие**:
+  - **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
+  - **--overwrite** - Is to overwrite existing metrics or not. Default: False
+  - **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
+  - **--database-port** - Port of the database. Environment Variable: POSTGRES_PORT
+  - **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
+  - **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
+  - **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
+  - **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+
+- **local**:
+  - **--dataset-path** - Path to data to process.
+
+- **s3**:
+  - **--LakeFS-address** - LakeFS address. Environment Variable: LAKEFS_ADDRESS
+  - **--LakeFS-port** - LakeFS port. Environment Variable: LAKEFS_PORT
+  - **--ACCESS-KEY-ID** - Access key id of LakeFS. Environment Variable: LAKEFS_ACCESS_KEY_ID
+  - **--SECRET-KEY** - Secret key of LakeFS. Environment Variable: LAKEFS_SECRET_KEY
+  - **--repository-name** - Name of LakeFS repository
+  - **--branch-name** - Name of the branch. Default: main
 
 ## Сбор текстовых метаданных
 
@@ -225,19 +268,30 @@ python -m src.metrics_collection.collect_audio_metrics --dataset-path [PATH_TO_D
 
 Для заргузки текста в базу данных выполните следующую команду:
 ```
-python -m src.metrics_collection.collect_audio_text --dataset-path [PATH_TO_DATASET]
+python -m src.metrics_collection.collect_audio_text local --dataset-path [PATH_TO_DATASET]
 ```
 
 Все параметры указаны ниже:
-- **--dataset-path** - Path to data to process.
-- **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+- **Общие**:
+  - **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
+  - **--overwrite** - Is to overwrite existing metrics or not. Default: False
+  - **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
+  - **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
+  - **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
+  - **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
+  - **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
+  - **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+
+- **local**:
+  - **--dataset-path** - Path to data to process.
+
+- **s3**:
+  - **--LakeFS-address** - LakeFS address. Environment Variable: LAKEFS_ADDRESS
+  - **--LakeFS-port** - LakeFS port. Environment Variable: LAKEFS_PORT
+  - **--ACCESS-KEY-ID** - Access key id of LakeFS. Environment Variable: LAKEFS_ACCESS_KEY_ID
+  - **--SECRET-KEY** - Secret key of LakeFS. Environment Variable: LAKEFS_SECRET_KEY
+  - **--repository-name** - Name of LakeFS repository
+  - **--branch-name** - Name of the branch. Default: main
 
 ## Распознование произнесенного текста с помощью ASR
 
@@ -250,22 +304,33 @@ python -m src.metrics_collection.collect_audio_text --dataset-path [PATH_TO_DATA
 После поднятия ASR Triton Inference Server'a запустите следующий скрипт:
 
 ```
-python -m src.preprocessing.asr_processing --dataset-path [PATH_TO_DATASET] --triton-port 127.0.0.1 --triton-port 9870
+python -m src.preprocessing.asr_processing --triton-port 127.0.0.1 --triton-port 9870 local --dataset-path [PATH_TO_DATASET] 
 ```
 
 Описание всех параметров представлено ниже:
-- **--dataset-path** - Path to the dataset containing audio files.
-- **--metadata-path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--triton-address** - Address of the Triton Inference Server. Default: localhost
-- **--triton-port** - Port of the Triton Inference Server. Default: 8000
-- **--batch-size** - Batch size for processing audio files. Default: 10
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+- **Общие**:
+  - **--metadata-path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
+  - **--triton-address** - Address of the Triton Inference Server. Default: localhost
+  - **--triton-port** - Port of the Triton Inference Server. Default: 8000
+  - **--batch-size** - Batch size for processing audio files. Default: 10
+  - **--overwrite** - Is to overwrite existing metrics or not. Default: False
+  - **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
+  - **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
+  - **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
+  - **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
+  - **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
+  - **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+
+- **local**:
+  - **--dataset-path** - Path to data to process.
+
+- **s3**:
+  - **--LakeFS-address** - LakeFS address. Environment Variable: LAKEFS_ADDRESS
+  - **--LakeFS-port** - LakeFS port. Environment Variable: LAKEFS_PORT
+  - **--ACCESS-KEY-ID** - Access key id of LakeFS. Environment Variable: LAKEFS_ACCESS_KEY_ID
+  - **--SECRET-KEY** - Secret key of LakeFS. Environment Variable: LAKEFS_SECRET_KEY
+  - **--repository-name** - Name of LakeFS repository
+  - **--branch-name** - Name of the branch. Default: main
 
 ## Вычисление WER/CER между ASR и Original текстами
 
@@ -273,21 +338,32 @@ python -m src.preprocessing.asr_processing --dataset-path [PATH_TO_DATASET] --tr
 
 Чтобы добавить эту информацию в базу данных, выполните:
 ```
-python -m src.metrics_collection.calculate_wer_cer --dataset-path [PATH_TO_DATASET]
+python -m src.metrics_collection.calculate_wer_cer local --dataset-path [PATH_TO_DATASET]
 ```
 
 Семплы, для которых нет одного из текстов будут проигнорированы и WER/CER для них не будет подсчитан. Отмечу, что при изменении одного из текстов в базе данных, WER/CER автоматически не будет пересчитан, поэтому полезным может быть иногда перезаписывать данные с помощью `--overwrite`.
 
 Все параметры указаны ниже:
-- **--dataset-path** - Path to data to process.
-- **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+- **Общие**:
+  - **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
+  - **--overwrite** - Is to overwrite existing metrics or not. Default: False
+  - **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
+  - **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
+  - **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
+  - **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
+  - **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
+  - **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+
+- **local**:
+  - **--dataset-path** - Path to data to process.
+
+- **s3**:
+  - **--LakeFS-address** - LakeFS address. Environment Variable: LAKEFS_ADDRESS
+  - **--LakeFS-port** - LakeFS port. Environment Variable: LAKEFS_PORT
+  - **--ACCESS-KEY-ID** - Access key id of LakeFS. Environment Variable: LAKEFS_ACCESS_KEY_ID
+  - **--SECRET-KEY** - Secret key of LakeFS. Environment Variable: LAKEFS_SECRET_KEY
+  - **--repository-name** - Name of LakeFS repository
+  - **--branch-name** - Name of the branch. Default: main
 
 ## Улучшение качества с помощью Resemble Enhancer'а
 
@@ -318,20 +394,47 @@ docker compose --env-file .env -f triton/enhancer/compose.yaml up
 ### Обработка Enhancer'ом [стандартизированного датасета](#структура-датасетов-после-обработки):
 
 ```
-python -m src.preprocessing.enhance --triton-address 127.0.0.1 --triton-port 8520 --dataset-path [PATH_TO_ORIGIN_DATASET] --output-path [SAVE_PATH]
+python -m src.preprocessing.enhance --triton-address 127.0.0.1 --triton-port 8520 local_to-local --input-path [PATH_TO_ORIGIN_DATASET] --output-path [SAVE_PATH]
 ```
 
 Описание всех параметров представлено ниже:
-- **--dataset-path** - Path to processing dataset.
-- **--metadata-path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--output-path** - Path where the enhanced dataset will be saved.
-- **--chunk-duration** - The duration in seconds by which the enhancer will divide your sample. Default: 30.0
-- **--chunk-overlap** - The duration of overlap between adjacent samples. Does not enlarge chunk_duration. Default: 1.0
-- **--model-name** - The name of Triton Inference Server model. Default: enhancer_ensemble
-- **--batch-size** - The size of the batch of async tasks every job will process
-- **--triton-address** - The Triton Inference Server address
-- **--triton-port** - The Triton Inference Server port
-- **--n-jobs** - Number of parallel jobs. If -1 specified, use all available CPU cores.
+- **Общие**:
+  - **--metadata-path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
+  - **--output-path** - Path where the enhanced dataset will be saved.
+  - **--chunk-duration** - The duration in seconds by which the enhancer will divide your sample. Default: 30.0
+  - **--chunk-overlap** - The duration of overlap between adjacent samples. Does not enlarge chunk_duration. Default: 1.0
+  - **--model-name** - The name of Triton Inference Server model. Default: enhancer_ensemble
+  - **--batch-size** - The size of the batch of async tasks every job will process
+  - **--triton-address** - The Triton Inference Server address
+  - **--triton-port** - The Triton Inference Server port
+  - **--n-jobs** - Number of parallel jobs. If -1 specified, use all available CPU cores.
+
+- **Для конфигурации s3**:
+  - **--LakeFS-address** - LakeFS address. Environment Variable: LAKEFS_ADDRESS
+  - **--LakeFS-port** - LakeFS port. Environment Variable: LAKEFS_PORT
+  - **--ACCESS-KEY-ID** - Access key id of LakeFS. Environment Variable: LAKEFS_ACCESS_KEY_ID
+  - **--SECRET-KEY** - Secret key of LakeFS. Environment Variable: LAKEFS_SECRET_KEY
+  - **--LakeFS-address** - LakeFS address. Environment Variable: LAKEFS_ADDRESS
+  - **--LakeFS-port** - LakeFS port. Environment Variable: LAKEFS_PORT
+  - **--ACCESS-KEY-ID** - Access key id of LakeFS. Environment Variable: LAKEFS_ACCESS_KEY_ID
+  - **--SECRET-KEY** - Secret key of LakeFS. Environment Variable: LAKEFS_SECRET_KEY
+
+- **local_to_local**:
+  - **--input-path** - Path to processing dataset.
+  - **--output-path** - Path where the enhanced dataset will be saved.
+- **local_to_s3**:
+  - **--input-path** - Path to processing dataset.
+  - **--output-repository-name** - Name of LakeFS repository where to store Enhanced data.
+  - **--output-branch-name** - Name of the branch where to store Enhanced data. Default: main
+- **s3_to_local**:
+  - **--input-repository-name** - Name of LakeFS repository where processing dataset is stored.
+  - **--input-branch-name** - Name of the branch where processing dataset is stored. Default: main
+  - **--output-path** - Path where the enhanced dataset will be saved.
+- **s3_to_s3**:
+  - **--input-repository-name** - Name of LakeFS repository where processing dataset is stored.
+  - **--input-branch-name** - Name of the branch where processing dataset is stored. Default: main
+  - **--output-repository-name** - Name of LakeFS repository where to store Enhanced data.
+  - **--output-branch-name** - Name of the branch where to store Enhanced data. 
 
 ## Получение информации о интонационных паузах с помощью Montreal Forced Aligner
 

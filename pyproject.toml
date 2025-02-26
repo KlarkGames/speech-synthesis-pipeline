@@ -27,6 +27,9 @@ dependencies = [
     "pyyaml>=6.0.2",
     "psycopg2>=2.9.10",
     "textgrid>=1.6.1",
+    "lakefs-client>=1.44.0",
+    "boto3>=1.36.18",
+    "lakefs-spec>=0.11.2",
 ]
 
 [dependency-groups]
