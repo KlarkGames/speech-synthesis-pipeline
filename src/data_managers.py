@@ -102,7 +102,10 @@ class LakeFSFileSystemManager:
 
     @property
     def directory_name(self) -> str:
-        return self._repository_name
+        if self._branch_name == "main":
+            return self._repository_name
+        else:
+            return f"{self._repository_name}_{self._branch_name}"
 
     @contextmanager
     def open_file(self, path: str | os.PathLike[str], mode: str) -> io.BufferedIOBase:
