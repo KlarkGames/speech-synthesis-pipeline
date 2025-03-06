@@ -33,6 +33,7 @@ import click
 import numpy as np
 import pandas as pd
 import soundfile as sf
+from dotenv import load_dotenv
 from dataclasses import dataclass
 from joblib import Parallel, delayed
 from pydub import AudioSegment
@@ -41,6 +42,8 @@ from tqdm import tqdm
 
 from src.data_managers import AbstractFileSystemManager, LakeFSFileSystemManager, LocalFileSystemManager
 from src.utils import update_bar_on_ending
+
+load_dotenv()
 
 
 @dataclass
@@ -63,7 +66,7 @@ class TritonInfo:
 
     @asynccontextmanager
     async def get_client(self):
-        """Async context manager for Triton client connection.
+        """Async ctx manager for Triton client connection.
 
         Yields:
             AsyncioModelClient: Connected Triton client instance
@@ -79,7 +82,7 @@ class TritonInfo:
         try:
             yield client
         finally:
-            client.close()
+            await client.close()
 
 
 async def send_data_to_enhancer(
@@ -107,9 +110,9 @@ async def send_data_to_enhancer(
     await asyncio.sleep(randint(10, 90) / 100)  # To prevent processes beeing intersected
     results = {}
 
-    async with asyncio.TaskGroup() as tg, triton_info.get_client() as client:
+    async with triton_info.get_client() as client, asyncio.TaskGroup() as tg:
         for file in input_batch:
-            if output_manager.exists(file):
+            if output_manager.is_path_exists(output_manager.get_absolute_path(file)):
                 continue
 
             with input_manager.get_buffered_reader(file) as reader:
@@ -183,8 +186,8 @@ def process_audio_files(
     show_default=True,
     help="The size of the batch of async tasks every job will process",
 )
-@click.option("--triton-address", help="The Triton Inference Server address")
-@click.option("--triton-port", type=int, help="The Triton Inference Server port")
+@click.option("--triton-address", help="The Triton Inference Server address", envvar="ENHANCER_TRITON_ADDRESS")
+@click.option("--triton-port", type=int, help="The Triton Inference Server port", envvar="ENHANCER_TRITON_HTTP_PORT")
 @click.option(
     "--n-jobs",
     type=int,
@@ -200,7 +203,7 @@ def process_audio_files(
 )
 @click.pass_context
 def cli(
-    context: click.Context,
+    ctx: click.Context,
     chunk_duration: float,
     chunk_overlap: float,
     model_name: str,
@@ -215,9 +218,9 @@ def cli(
     Configures processing parameters and Triton connection info.
     """
 
-    context.ensure_object(dict)
+    ctx.ensure_object(dict)
 
-    context["triton_info"] = TritonInfo(
+    ctx.obj["triton_info"] = TritonInfo(
         model_name=model_name,
         chunk_duration=chunk_duration,
         chunk_overlap=chunk_overlap,
@@ -225,16 +228,16 @@ def cli(
         triton_port=triton_port,
     )
 
-    context["batch_size"] = batch_size
-    context["n_jobs"] = n_jobs
-    context["metadata_path"] = metadata_path
+    ctx.obj["batch_size"] = batch_size
+    ctx.obj["n_jobs"] = n_jobs
+    ctx.obj["metadata_path"] = metadata_path
 
 
 @cli.command()
 @click.option("--input-path", help="Path to processing dataset.")
 @click.option("--output-path", help="Path where the enhanced dataset will be saved.")
 @click.pass_context
-def local_to_local(context: click.Context, input_path: str, output_path: str):
+def local_to_local(ctx: click.Context, input_path: str, output_path: str):
     """Process files from local filesystem to local output.
 
     Args:
@@ -247,16 +250,16 @@ def local_to_local(context: click.Context, input_path: str, output_path: str):
     input_manager = LocalFileSystemManager(input_path)
     output_manager = LocalFileSystemManager(output_path)
 
-    if context["metadata_path"] is not None:
-        metadata_df = pd.read_csv(context["metadata_path"], sep="|")
+    if ctx.obj["metadata_path"] is not None:
+        metadata_df = pd.read_csv(ctx.obj["metadata_path"], sep="|")
     else:
         with input_manager.get_buffered_reader("metadata.csb") as reader:
             metadata_df = pd.read_csv(reader, sep="|")
 
     process_dataset(
-        batch_size=context["batch_size"],
-        n_jobs=context["n_jobs"],
-        triton_info=context["triton_info"],
+        batch_size=ctx.obj["batch_size"],
+        n_jobs=ctx.obj["n_jobs"],
+        triton_info=ctx.obj["triton_info"],
         input_manager=input_manager,
         output_manager=output_manager,
         metadata_df=metadata_df,
@@ -273,7 +276,7 @@ def local_to_local(context: click.Context, input_path: str, output_path: str):
 @click.option("--output-branch-name", type=str, help="Name of the branch where to store Enhanced data.", default="main")
 @click.pass_context
 def local_to_s3(
-    context: click.Context,
+    ctx: click.Context,
     input_path: str,
     lakefs_address: str,
     lakefs_port: str,
@@ -297,16 +300,16 @@ def local_to_s3(
         lakefs_branch_name=output_branch_name,
     )
 
-    if context["metadata_path"] is not None:
-        metadata_df = pd.read_csv(context["metadata_path"], sep="|")
+    if ctx.obj["metadata_path"] is not None:
+        metadata_df = pd.read_csv(ctx.obj["metadata_path"], sep="|")
     else:
         with input_manager.get_buffered_reader("metadata.csb") as reader:
             metadata_df = pd.read_csv(reader, sep="|")
 
     process_dataset(
-        batch_size=context["batch_size"],
-        n_jobs=context["n_jobs"],
-        triton_info=context["triton_info"],
+        batch_size=ctx.obj["batch_size"],
+        n_jobs=ctx.obj["n_jobs"],
+        triton_info=ctx.obj["triton_info"],
         input_manager=input_manager,
         output_manager=output_manager,
         metadata_df=metadata_df,
@@ -326,7 +329,7 @@ def local_to_s3(
 )
 @click.pass_context
 def s3_to_s3(
-    context: click.Context,
+    ctx: click.Context,
     lakefs_address: str,
     lakefs_port: str,
     access_key_id: str,
@@ -358,16 +361,16 @@ def s3_to_s3(
         lakefs_branch_name=output_branch_name,
     )
 
-    if context["metadata_path"] is not None:
-        metadata_df = pd.read_csv(context["metadata_path"], sep="|")
+    if ctx.obj["metadata_path"] is not None:
+        metadata_df = pd.read_csv(ctx.obj["metadata_path"], sep="|")
     else:
-        with input_manager.get_buffered_reader("metadata.csb") as reader:
+        with input_manager.get_buffered_reader("metadata.csv") as reader:
             metadata_df = pd.read_csv(reader, sep="|")
 
     process_dataset(
-        batch_size=context["batch_size"],
-        n_jobs=context["n_jobs"],
-        triton_info=context["triton_info"],
+        batch_size=ctx.obj["batch_size"],
+        n_jobs=ctx.obj["n_jobs"],
+        triton_info=ctx.obj["triton_info"],
         input_manager=input_manager,
         output_manager=output_manager,
         metadata_df=metadata_df,
@@ -386,7 +389,7 @@ def s3_to_s3(
 @click.option("--output-path", help="Path where the enhanced dataset will be saved.")
 @click.pass_context
 def s3_to_local(
-    context: click.Context,
+    ctx: click.Context,
     lakefs_address: str,
     lakefs_port: str,
     access_key_id: str,
@@ -409,16 +412,16 @@ def s3_to_local(
     )
     output_manager = LocalFileSystemManager(output_path)
 
-    if context["metadata_path"] is not None:
-        metadata_df = pd.read_csv(context["metadata_path"], sep="|")
+    if ctx.obj["metadata_path"] is not None:
+        metadata_df = pd.read_csv(ctx.obj["metadata_path"], sep="|")
     else:
         with input_manager.get_buffered_reader("metadata.csb") as reader:
             metadata_df = pd.read_csv(reader, sep="|")
 
     process_dataset(
-        batch_size=context["batch_size"],
-        n_jobs=context["n_jobs"],
-        triton_info=context["triton_info"],
+        batch_size=ctx.obj["batch_size"],
+        n_jobs=ctx.obj["n_jobs"],
+        triton_info=ctx.obj["triton_info"],
         input_manager=input_manager,
         output_manager=output_manager,
         metadata_df=metadata_df,
@@ -466,4 +469,4 @@ def process_dataset(
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})

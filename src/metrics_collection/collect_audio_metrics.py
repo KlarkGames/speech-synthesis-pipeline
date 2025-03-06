@@ -172,10 +172,10 @@ def get_audio_metrics_from_selected_samples(
 ) -> List[AudioMetrics]:
     def process_file(sample: NamedTuple, tqdm_bar: tqdm):
         with file_system_manager.get_buffered_reader(sample.path_to_wav) as reader:
-            sf_results = update_bar_on_ending(tqdm_bar)(get_audio_info_sf)(reader)
+            sf_results = get_audio_info_sf(reader)
 
         with file_system_manager.get_buffered_reader(sample.path_to_wav) as reader:
-            pydub_results = update_bar_on_ending(tqdm_bar)(get_audio_info_pydub)(reader)
+            pydub_results = get_audio_info_pydub(reader)
 
         return AudioMetrics(
             audio_md5_hash=sample.hash,
@@ -189,7 +189,7 @@ def get_audio_metrics_from_selected_samples(
 
     tqdm_bar = tqdm(total=len(dataframe), desc="Collecting audio metrics")
     samples_audio_info = Parallel(n_jobs=n_jobs, require="sharedmem")(
-        delayed(process_file)(sample, tqdm_bar) for sample in dataframe.itertuples()
+        delayed(update_bar_on_ending(tqdm_bar)(process_file))(sample, tqdm_bar) for sample in dataframe.itertuples()
     )
 
     samples_audio_info = [info for info in samples_audio_info if info is not None]

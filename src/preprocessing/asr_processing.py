@@ -72,25 +72,25 @@ async def get_texts_from_audio_by_asr(triton_address, triton_port, file_system_m
         for input_file in input_batch:
             txt_path = input_file.replace("/wavs", "/asr_recognized_texts").replace(".wav", ".txt")
 
-            if file_system_manager.exists(txt_path):
+            if file_system_manager.is_path_exists(file_system_manager.get_absolute_path(txt_path)):
                 with file_system_manager.get_buffered_reader(txt_path) as text_file:
                     text = text_file.read().decode("UTF-8")
                 results[input_file] = text
             else:
                 with file_system_manager.get_buffered_reader(input_file) as audio_file:
                     audio = AudioSegment.from_wav(audio_file).set_channels(1)
-                    audio = audio.set_frame_rate(16000)
-                    audio_data = np.array(audio.get_array_of_samples(), dtype=np.float64)
+                audio = audio.set_frame_rate(16000)
+                audio_data = np.array(audio.get_array_of_samples(), dtype=np.float64).reshape(1, -1)
 
-                    result = tg.create_task(client.infer_sample(audio_signal=audio_data))
-                    pending_responses[input_file] = result
+                task = tg.create_task(client.infer_batch(audio_data))
+                pending_responses[input_file] = task
 
     await client.close()
 
     for input_file, response in pending_responses.items():
         txt_path = input_file.replace("/wavs", "/asr_recognized_texts").replace(".wav", ".txt")
 
-        text = response.result()["decoded_texts"].decode("UTF-8")
+        text = response.result()["decoded_texts"].base[0].decode()
 
         with file_system_manager.get_buffered_writer(txt_path) as text_file:
             text_file.write(text.encode("UTF-8"))
@@ -143,12 +143,12 @@ def process_audios(input_batch, file_system_manager, triton_address, triton_port
 @click.option(
     "--n-jobs", type=int, default=-1, help="Number of parallel jobs to use while processing. -1 means to use all cores."
 )
-@click.option("--triton-address", default="localhost", help="Address of the Triton Inference Server.")
-@click.option("--triton-port", type=int, default=8000, help="Port of the Triton Inference Server.")
+@click.option("--triton-address", help="Address of the Triton Inference Server.", envvar="ASR_TRITON_ADDRESS")
+@click.option("--triton-port", type=int, help="Port of the Triton Inference Server.", envvar="ASR_TRITON_HTTP_PORT")
 @click.option("--batch-size", type=int, default=10, help="Batch size for processing audio files.")
 @click.pass_context
 def cli(
-    context: click.Context,
+    ctx: click.Context,
     overwrite: bool,
     database_address: str,
     database_port: int,
@@ -165,25 +165,25 @@ def cli(
     Configures database connection, processing parameters, and Triton settings.
     """
 
-    context.ensure_object(dict)
+    ctx.ensure_object(dict)
 
-    context.obj["overwrite"] = overwrite
-    context.obj["n_jobs"] = n_jobs
+    ctx.obj["overwrite"] = overwrite
+    ctx.obj["n_jobs"] = n_jobs
 
     engine = create_engine(
         f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"
     )
-    context.obj["engine"] = engine
+    ctx.obj["engine"] = engine
 
-    context.obj["triton_address"] = triton_address
-    context.obj["triton_port"] == triton_port
-    context.obj["batch_size"] == batch_size
+    ctx.obj["triton_address"] = triton_address
+    ctx.obj["triton_port"] = triton_port
+    ctx.obj["batch_size"] = batch_size
 
 
 @cli.command()
 @click.option("--dataset-path", type=click.Path(exists=True), help="Path to dataset")
 @click.pass_context
-def local(context: click.Context, dataset_path: str):
+def local(ctx: click.Context, dataset_path: str):
     """Process audio files from local filesystem.
 
     Args:
@@ -197,12 +197,12 @@ def local(context: click.Context, dataset_path: str):
 
     process_dataset(
         file_system_manager=file_system_manager,
-        engine=context.obj["engine"],
-        overwrite=context.obj["overwrite"],
-        n_jobs=context.obj["n_jobs"],
-        triton_address=context.obj["triton_address"],
-        triton_port=context.obj["triton_port"],
-        batch_size=context.obj["batch_size"],
+        engine=ctx.obj["engine"],
+        overwrite=ctx.obj["overwrite"],
+        n_jobs=ctx.obj["n_jobs"],
+        triton_address=ctx.obj["triton_address"],
+        triton_port=ctx.obj["triton_port"],
+        batch_size=ctx.obj["batch_size"],
     )
 
 
@@ -215,7 +215,7 @@ def local(context: click.Context, dataset_path: str):
 @click.option("--branch-name", type=str, help="Name of the branch.", default="main")
 @click.pass_context
 def s3(
-    context: click.Context,
+    ctx: click.Context,
     lakefs_address: str,
     lakefs_port: str,
     access_key_id: str,
@@ -239,12 +239,12 @@ def s3(
 
     process_dataset(
         file_system_manager=file_system_manager,
-        engine=context.obj["engine"],
-        overwrite=context.obj["overwrite"],
-        n_jobs=context.obj["n_jobs"],
-        triton_address=context.obj["triton_address"],
-        triton_port=context.obj["triton_port"],
-        batch_size=context.obj["batch_size"],
+        engine=ctx.obj["engine"],
+        overwrite=ctx.obj["overwrite"],
+        n_jobs=ctx.obj["n_jobs"],
+        triton_address=ctx.obj["triton_address"],
+        triton_port=ctx.obj["triton_port"],
+        batch_size=ctx.obj["batch_size"],
     )
 
 
@@ -373,4 +373,4 @@ def process_selected_samples(
 
 
 if __name__ == "__main__":
-    cli()
+    cli(obj={})
