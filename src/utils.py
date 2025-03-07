@@ -1,12 +1,13 @@
 import functools
 import hashlib
-import os
-from typing import Any, Callable, Iterable
+from typing import Any, Callable, Iterable, NamedTuple
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from tqdm import tqdm
+import io
+from src.data_managers import AbstractFileSystemManager
 
 
 def update_bar_on_ending(status_bar: tqdm, n: int = 1) -> Callable:
@@ -52,23 +53,31 @@ def signal_to_noise(a: Iterable, axis=0, ddof=0):
     return np.where(sd == 0, 0, m / sd)
 
 
-def get_hash_of_file(path_to_file: str) -> str:
-    return hashlib.md5(open(path_to_file, "rb").read()).hexdigest()
+def get_hash_of_file(reader: io.BufferedReader) -> str:
+    return hashlib.md5(reader.read()).hexdigest()
 
 
-def read_metadata_and_calculate_hash(path_to_metadata: str, path_to_dataset: str, n_jobs=-1) -> pd.DataFrame:
+def read_metadata_and_calculate_hash(
+    path_to_metadata: str | io.BufferedReader, file_manager: AbstractFileSystemManager, n_jobs=-1
+) -> pd.DataFrame:
     metadata_df = pd.read_csv(path_to_metadata, sep="|").drop_duplicates()
 
     assert "path_to_wav" in metadata_df.columns
     assert "speaker_id" in metadata_df.columns
 
     if "hash" not in metadata_df.columns:
+
+        def process_file(sample: NamedTuple, tqdm_bar: tqdm):
+            with file_manager.get_buffered_reader(sample.path_to_wav) as reader:
+                return update_bar_on_ending(tqdm_bar)(get_hash_of_file)(reader)
+
         tqdm_bar = tqdm(total=len(metadata_df), desc="Getting hashes from audio files")
         metadata_df["hash"] = Parallel(n_jobs=n_jobs, require="sharedmem")(
-            delayed(update_bar_on_ending(tqdm_bar)(get_hash_of_file))(os.path.join(path_to_dataset, sample.path_to_wav))
-            for sample in metadata_df.itertuples()
+            delayed(process_file)(sample, tqdm_bar) for sample in metadata_df.itertuples()
         )
-        metadata_df.to_csv(path_to_metadata, sep="|", index=False)
+
+        with file_manager.get_buffered_writer("metadata.csv") as writer:
+            metadata_df.to_csv(writer, sep="|", index=False)
 
     metadata_df = metadata_df.drop_duplicates(subset=["hash"])
 

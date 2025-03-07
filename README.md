@@ -1,87 +1,90 @@
-# Emotional Speech Synthesis Pipeline
+# Пайплайн обработки речевых данных
 
 # Описание проекта
 
-Данный репозиторий является пайплайном обучения Emotional Speech Synthesis модели для одноголосой озвучки диалогов, генерируемых LLM.
+Данный репозиторий содержит пайплайн для обработки речевых данных, включающий в себя сбор метаданных, фильтрацию и предобработку аудиофайлов. Пайплайн поддерживает работу как с локальными файлами, так и с облачным хранилищем через LakeFS/S3.
 
-Подробнее про задачу, для которой разрабатывается данный пайплайн можно прочесть в [ML System Design документе](docs/ml_system_design_doc.md).
+Подробнее про задачу и архитектуру пайплайна можно прочесть в [ML System Design документе](docs/ml_system_design_doc.md).
 
 # Содержание
 
-- [Emotional Speech Synthesis Pipeline](#emotional-speech-synthesis-pipeline)
+- [Пайплайн обработки речевых данных](#пайплайн-обработки-речевых-данных)
 - [Описание проекта](#описание-проекта)
 - [Содержание](#содержание)
 - [Формирование стандартизированного формата](#формирование-стандартизированного-формата)
   - [Предобработка датасета MLS](#предобработка-датасета-mls)
-  - [Предобработка датасета EmoV\_DB](#предобработка-датасета-emov_db)
+  - [Предобработка датасета EmoV_DB](#предобработка-датасета-emov_db)
   - [Предобработка директории с аудиофайлами](#предобработка-директории-с-аудиофайлами)
+- [Работа с объектным хранилищем S3 и LakeFS](#работа-с-объектным-хранилищем-s3-и-lakefs)
+  - [Конфигурация](#конфигурация)
+  - [Загрузка данных](#загрузка-данных)
+    - [Загрузка любой директории](#загрузка-любой-директории)
 - [Сохранение метаданных о датасетах](#сохранение-метаданных-о-датасетах)
   - [Требуемая структура реляционной базы данных](#требуемая-структура-реляционной-базы-данных)
   - [Сбор аудио метаданных](#сбор-аудио-метаданных)
   - [Сбор текстовых метаданных](#сбор-текстовых-метаданных)
-  - [Распознование произнесенного текста с помощью ASR](#распознование-произнесенного-текста-с-помощью-asr)
+  - [Распознавание произнесенного текста с помощью ASR](#распознавание-произнесенного-текста-с-помощью-asr)
     - [Обработка датасета с помощью ASR](#обработка-датасета-с-помощью-asr)
   - [Вычисление WER/CER между ASR и Original текстами](#вычисление-wercer-между-asr-и-original-текстами)
   - [Улучшение качества с помощью Resemble Enhancer'а](#улучшение-качества-с-помощью-resemble-enhancerа)
     - [Запуск Enhancer'а](#запуск-enhancerа)
-    - [Обработка Enhancer'ом стандартизированного датасета:](#обработка-enhancerом-стандартизированного-датасета)
+    - [Обработка Enhancer'ом стандартизированного датасета](#обработка-enhancerом-стандартизированного-датасета)
   - [Получение информации о интонационных паузах с помощью Montreal Forced Aligner](#получение-информации-о-интонационных-паузах-с-помощью-montreal-forced-aligner)
     - [Установка зависимостей](#установка-зависимостей)
     - [Обработка датасета с помощью MFA](#обработка-датасета-с-помощью-mfa)
-  - [Фильтрация датасетов по собранным метаданным. Формирование filtered\_metadata.csv](#фильтрация-датасетов-по-собранным-метаданным-формирование-filtered_metadatacsv)
+  - [Фильтрация датасетов по собранным метаданным](#фильтрация-датасетов-по-собранным-метаданным)
 
-# Формирование [стандартизированного формата](docs/ml_system_design_doc.md#32-стандартизованный-формат-хранения-данных)
+# Формирование стандартизированного формата
 
 ## Предобработка датасета MLS
 
-Чтобы предобработать датасет скачайте и распакуйте его в директорию (Например *data/raw/mls_oput_english*) и запустите скрипт:
+Для предобработки датасета MLS скачайте и распакуйте его в директорию (например, *data/raw/mls_oput_english*) и запустите скрипт:
 
-```
+```bash
 python -m src.data.MLS.preprocess --dataset-path [DATASET_DIRECTORY] --output-path [SAVE_DIRECTORY] --change-sample-rate True --result-sample-rate 44100 --n-files 3600
 ```
 
 Результатом будет сформатированный под [принятую структуру](docs/ml_system_design_doc.md#32-стандартизованный-формат-хранения-данных) датасет в директории сохранения.
 
-Описание всех параметров представлено ниже:
-- **--dataset-path** - Path to MLS dataset
-- **--output-path** - Path to output directory
-- **--change-sample-rate** - Resample all audiofiles to specified sample rate. *Default: False*
-- **--result-sample-rate** - Resample all audiofiles to specified sample rate. *Default: 44100*
-- **--n-jobs** - Number of parallel jobs. If set to -1, use all available CPU cores. *Default: -1*
-- **--cache-dir** - Directory in output path to store cache files. *Default: .cache*
-- **--n-files** - Number of files to process. If set to -1, process all files of speaker. Mean duration of files is 15s, so if you want to process 1h of speech, set this to 3600. If there not enough files, all files will be processed. *Default: 3600*
-- **--cache-every-n-speakers** - Number of speakers to be processed before cache is updated. *Default: 100*
+Описание параметров:
+- **--dataset-path** - Путь к датасету MLS
+- **--output-path** - Путь к директории для сохранения результатов
+- **--change-sample-rate** - Изменить частоту дискретизации всех аудиофайлов. *По умолчанию: False*
+- **--result-sample-rate** - Целевая частота дискретизации. *По умолчанию: 44100*
+- **--n-jobs** - Количество параллельных процессов. -1 означает использование всех доступных ядер CPU. *По умолчанию: -1*
+- **--cache-dir** - Директория для кэширования файлов. *По умолчанию: .cache*
+- **--n-files** - Количество файлов для обработки. -1 означает обработку всех файлов. Средняя длительность файла 15с, поэтому для обработки 1 часа речи установите значение 3600. *По умолчанию: 3600*
+- **--cache-every-n-speakers** - Количество спикеров для обработки перед обновлением кэша. *По умолчанию: 100*
 
 ## Предобработка датасета EmoV_DB
 
-Чтобы предобработать датасет скачайте и распакуйте его в директорию (Например *data/raw/EmoV_DB*) и запустите скрипт:
+Для предобработки датасета EmoV_DB скачайте и распакуйте его в директорию (например, *data/raw/EmoV_DB*) и запустите скрипт:
 
-```
+```bash
 python -m src.data.EmoV_DB.preprocess --dataset-path [DATASET_DIRECTORY] --output-path [SAVE_DIRECTORY] --change-sample-rate True --result-sample-rate 44100 --download-cmuarctic-data True
 ```
 
-Результатом будет сформатированный под [принятую структуру](#структура-датасетов-после-обработки) датасет в директории сохранения.
+Результатом будет сформатированный под [принятую структуру](docs/ml_system_design_doc.md#32-стандартизованный-формат-хранения-данных) датасет в директории сохранения.
 
-Описание всех параметров представлено ниже:
-- **--dataset-path** - Path to EmoV_DB dataset
-- **--output-path** - Path to output directory
-- **--cmuarctic-data-path** - Path to 'cmuarctic.data' file with texts for audiofiles. *Default: None*
-- **--cmuarctic-url** - Url to 'cmuarctic.data' file to be able to download this file if it doesn't exist. *Default: http://www.festvox.org/cmu_arctic/cmuarctic.data*
-- **--download-cmuarctic-data** - Download 'cmuarctic.data' file if it doesn't exist to input dataset path. *Default: False*
-- **--change-sample-rate** - Resample all audiofiles to specified sample rate. *Default: False*
-- **--result-sample-rate** - Resample all audiofiles to specified sample rate. *Default: 44100*
-- **--n-jobs** - Number of parallel jobs. If set to -1, use all available CPU cores. *Default: -1*
+Описание параметров:
+- **--dataset-path** - Путь к датасету EmoV_DB
+- **--output-path** - Путь к директории для сохранения результатов
+- **--cmuarctic-data-path** - Путь к файлу 'cmuarctic.data' с текстами для аудиофайлов. *По умолчанию: None*
+- **--cmuarctic-url** - URL для скачивания файла 'cmuarctic.data'. *По умолчанию: http://www.festvox.org/cmu_arctic/cmuarctic.data*
+- **--download-cmuarctic-data** - Скачать файл 'cmuarctic.data' если он отсутствует. *По умолчанию: False*
+- **--change-sample-rate** - Изменить частоту дискретизации всех аудиофайлов. *По умолчанию: False*
+- **--result-sample-rate** - Целевая частота дискретизации. *По умолчанию: 44100*
+- **--n-jobs** - Количество параллельных процессов. -1 означает использование всех доступных ядер CPU. *По умолчанию: -1*
 
 ## Предобработка директории с аудиофайлами
 
-Если имеются неструктурированные аудиофайлы, находящиеся в одной директории, их можно сформировать в датасет следующим скриптом:
+Для обработки неструктурированных аудиофайлов в одной директории используйте следующий скрипт:
 
-```
+```bash
 python -m src.datasets.audio_folder --folder-path [PATH_TO_DIRECTORY_WITH_AUDIOFILES] --save-path [STRUCTURED_DATASET_SAVE_PATH]
 ```
 
-Допустим есть следующий датасет:
-
+Пример структуры входных данных:
 ```
 raw_audio_path/
 ├── audio_1.mp3
@@ -93,8 +96,7 @@ raw_audio_path/
     └── audio_4.wav
 ```
 
-Обычный запуск скрипта создаст следующую структуру:
-
+Стандартный запуск создаст следующую структуру:
 ```
 dataset_path/
 ├── wavs/
@@ -111,7 +113,6 @@ dataset_path/
 ```
 
 `metadata.csv` будет содержать следующую информацию:
-
 | path_to_wav                                  | speaker_id |
 | -------------------------------------------- | ---------- |
 | wavs/audio_1.wav                             | -1         |
@@ -119,75 +120,49 @@ dataset_path/
 | speaker_0/wavs/another_directory/audio_3.wav | 0          |
 | speaker_1/wavs/audio_4.wav                   | 1          |
 
-Если указать флаг `--unknown-speaker` добавит все аудиофайлы со speaker_id -1:
+Описание параметров:
+- **--folder-path** - Путь к директории с аудиофайлами
+- **--single-speaker** - Все файлы принадлежат одному спикеру? *По умолчанию: False*
+- **--unknown-speaker** - Все файлы принадлежат неизвестному спикеру? *По умолчанию: False*
+- **--overwrite** - Перезаписать существующие файлы? *По умолчанию: False*
+- **--save-path** - Путь для сохранения отформатированного датасета
+- **--n-jobs** - Количество параллельных процессов. -1 означает использование всех доступных ядер CPU. *По умолчанию: -1*
 
+# Работа с объектным хранилищем S3 и LakeFS
+
+## Конфигурация
+
+Проект поддерживает работу с объектными хранилищами через LakeFS. Для работы с LakeFS используется библиотека [`lakefs-spec`](https://github.com/aai-institute/lakefs-spec).
+
+Необходимые параметры для работы с LakeFS:
 ```
-dataset_path/
-├── wavs/
-│   ├── audio_1.wav
-│   ├── some_directory/
-│   │   ├── audio_2.wav
-│   │   └── another_directory/
-│   │       └── audio_3.wav
-│   └── and_another_one_directory/
-│       └── audio_4.wav
-└── metadata.csv
-```
-
-`metadata.csv` будет содержать следующую информацию:
-
-| path_to_wav                                       | speaker_id |
-| ------------------------------------------------- | ---------- |
-| wavs/audio_1.wav                                  | -1         |
-| wavs/some_directory/audio_2.wav                   | -1         |
-| wavs/some_directory/another_directory/audio_3.wav | -1         |
-| wavs/and_another_one_directory/audio_4.wav        | -1         |
-
-Если указать флаг `--single-speaker` все аудиофайлы будут считаться от одного спикера:
-
-```
-dataset_path/
-├── speaker_0/
-│   └── wavs/
-│       ├── audio_1.wav
-│       ├── some_directory/
-│       │   ├── audio_2.wav
-│       │   └── another_directory/
-│       │       └── audio_3.wav
-│       └── and_another_one_directory/
-│           └── audio_4.wav
-└── metadata.csv
+LAKEFS_ADDRESS=http://[YOUR_IP_ADDRESS]
+LAKEFS_PORT=[YOUR_LAKEFS_PORT]
+LAKEFS_ACCESS_KEY_ID=[YOUR_ACCESS_KEY_ID]
+LAKEFS_SECRET_KEY=[YOUR_SECRET_KEY]
 ```
 
-`metadata.csv` будет содержать следующую информацию:
+Рекомендуется указать эти параметры в файле `.env`.
 
-| path_to_wav                                                 | speaker_id |
-| ----------------------------------------------------------- | ---------- |
-| speaker_0/wavs/audio_1.wav                                  | 0          |
-| speaker_0/wavs/some_directory/audio_2.wav                   | 0          |
-| speaker_0/wavs/some_directory/another_directory/audio_3.wav | 0          |
-| speaker_0/wavs/and_another_one_directory/audio_4.wav        | 0          |
+## Загрузка данных
 
-**It's imposible** to specify both `--single-speaker` and `--unknown-speaker` flags. You'll get ValueError.
+### Загрузка любой директории
 
-Все параметры указаны ниже:
-- **--folder-path** - Path to the folder with audio files.
-- **--single-speaker** - Is all files in this folder belongs to one speaker? Default: False
-- **--unknown-speaker** - Is all files in this folder belongs to unknown speaker? Default: False
-- **--overwrite** - Is it needed to overwrite existing files? Default: False
-- **--save-path** - Path where to save formated dataset.
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+Для загрузки файлов можно использовать [lakefsclt](https://docs.lakefs.io/reference/cli.html) или скрипт `src/datasets/load_diretory_to_lakefs.py`:
+
+```bash
+python -m src.datasets.load_directory_to_lakefs --path [PATH_TO_YOUR_DIRECTORY] --repository-name [NAME_OF_YOUR_REPOSITORY]
+```
 
 # Сохранение метаданных о датасетах
 
 ## Требуемая структура реляционной базы данных
 
-Для полноценного функционирования скриптов обработки требуется поднять PostgreSQL со следующей схемой:
+Для работы скриптов требуется PostgreSQL со следующей схемой:
 
 ![alt text](docs/images/Metadata_DB.drawio.png)
 
-Всю информацию о базе данных данных следует сохранить в `.env` файл, из которого скрипты автоматически подтянут их без надобности указывать в аргументах скриптов.
-
+Параметры подключения к базе данных должны быть указаны в файле `.env`:
 ```
 POSTGRES_USER=[POSTGRES_USER]
 POSTGRES_PASSWORD=[POSTGRES_PASSWORD]
@@ -198,114 +173,106 @@ POSTGRES_ADDRESS=localhost
 
 ## Сбор аудио метаданных
 
-Для того, чтобы собрать метаданные с стандартизированного датасета, воспользуйтесь следующей командой:
+Для сбора метаданных с датасета используйте команду:
 
+```bash
+python -m src.metrics_collection.collect_audio_metrics local --dataset-path [PATH_TO_DATASET]
 ```
-python -m src.metrics_collection.collect_audio_metrics --dataset-path [PATH_TO_DATASET]
-```
 
-Скрипт пробежит по всем файлам, которые не были добавлены в базу данных ранее, и сохранит их аудио метаданные. Так же скрипт запишет информацию о пренадлежности файлов к добавляемому датасету.
+Скрипт обработает все файлы, которые еще не были добавлены в базу данных, и сохранит их аудио метаданные.
 
-Скрипт высчитывает хеш файлов в качестве идентификатора, что гарантирует, что даже если файл был добавлен в несколько датасетов, при обработке каждого из них файл будет обработан единажды (Если конечно не прописать `--overwrite`, что заставит скрипт перезаписать информацию в БД).
+Описание параметров:
+- **Общие**:
+  - **--metadata_path** - Путь к файлу метаданных. *По умолчанию: [DATASET_PATH]/metadata.csv*
+  - **--overwrite** - Перезаписать существующие метрики? *По умолчанию: False*
+  - **--database-address** - Адрес базы данных. *Переменная окружения: POSTGRES_ADDRESS*
+  - **--database-port** - Порт базы данных. *Переменная окружения: POSTGRES_PORT*
+  - **--database-user** - Имя пользователя базы данных. *Переменная окружения: POSTGRES_USER*
+  - **--database-password** - Пароль базы данных. *Переменная окружения: POSTGRES_PASSWORD*
+  - **--database-name** - Имя базы данных. *Переменная окружения: POSTGRES_DB*
+  - **--n-jobs** - Количество параллельных процессов. -1 означает использование всех доступных ядер CPU. *По умолчанию: -1*
 
-Все параметры указаны ниже:
-- **--dataset-path** - Path to data to process.
-- **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+- **local**:
+  - **--dataset-path** - Путь к обрабатываемым данным
+
+- **s3**:
+  - **--LakeFS-address** - Адрес LakeFS. *Переменная окружения: LAKEFS_ADDRESS*
+  - **--LakeFS-port** - Порт LakeFS. *Переменная окружения: LAKEFS_PORT*
+  - **--ACCESS-KEY-ID** - Ключ доступа LakeFS. *Переменная окружения: LAKEFS_ACCESS_KEY_ID*
+  - **--SECRET-KEY** - Секретный ключ LakeFS. *Переменная окружения: LAKEFS_SECRET_KEY*
+  - **--repository-name** - Имя репозитория LakeFS
+  - **--branch-name** - Имя ветки. *По умолчанию: main*
 
 ## Сбор текстовых метаданных
 
-Данный скрипт добавляет соответствия между аудио файлом и произносимому тексту. Для этого скрипта **требуется наличие поля "text"** в `metadata.csv`. Если такого поля не будет найдено - скрипт выбросит ошибку.
+Для добавления соответствий между аудиофайлами и произносимым текстом используйте команду:
 
-Для заргузки текста в базу данных выполните следующую команду:
+```bash
+python -m src.metrics_collection.collect_audio_text local --dataset-path [PATH_TO_DATASET]
 ```
-python -m src.metrics_collection.collect_audio_text --dataset-path [PATH_TO_DATASET]
-```
 
-Все параметры указаны ниже:
-- **--dataset-path** - Path to data to process.
-- **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+**Требуется наличие поля "text"** в `metadata.csv`.
 
-## Распознование произнесенного текста с помощью ASR
+Описание параметров аналогично параметрам сбора аудио метаданных.
 
-Для оценки качества голоса в записях используется оценка с помощью Automatic Speech Recognition. Оригинальные текст сопоставляется с распознанным по WER и CER. В случаях, когда эти показатели превышают требуемый порог - информация о семплах удаляется из `metadata.csv`.
+## Распознавание произнесенного текста с помощью ASR
 
-Для анализа используется Triton Inference Server с ASR моделью. Данный сервер находится под NDA. Принцип работы аналогичен [обработке Enhancer'ом](#улучшение-качества-с-помощью-resemble-enhancerа).
+Для оценки качества голоса используется ASR. Оригинальный текст сравнивается с распознанным по метрикам WER и CER.
 
 ### Обработка датасета с помощью ASR
 
-После поднятия ASR Triton Inference Server'a запустите следующий скрипт:
+После запуска ASR Triton Inference Server выполните:
 
-```
-python -m src.preprocessing.asr_processing --dataset-path [PATH_TO_DATASET] --triton-port 127.0.0.1 --triton-port 9870
+```bash
+python -m src.preprocessing.asr_processing --triton-port 127.0.0.1 --triton-port 9870 local --dataset-path [PATH_TO_DATASET]
 ```
 
-Описание всех параметров представлено ниже:
-- **--dataset-path** - Path to the dataset containing audio files.
-- **--metadata-path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--triton-address** - Address of the Triton Inference Server. Default: localhost
-- **--triton-port** - Port of the Triton Inference Server. Default: 8000
-- **--batch-size** - Batch size for processing audio files. Default: 10
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+Описание параметров:
+- **Общие**:
+  - **--metadata-path** - Путь к файлу метаданных. *По умолчанию: [DATASET_PATH]/metadata.csv*
+  - **--triton-address** - Адрес Triton Inference Server. *По умолчанию: localhost*
+  - **--triton-port** - Порт Triton Inference Server. *По умолчанию: 8000*
+  - **--batch-size** - Размер батча для обработки аудиофайлов. *По умолчанию: 10*
+  - **--overwrite** - Перезаписать существующие метрики? *По умолчанию: False*
+  - **--database-address** - Адрес базы данных. *Переменная окружения: POSTGRES_ADDRESS*
+  - **--database-port** - Порт базы данных. *Переменная окружения: POSTGRES_PORT*
+  - **--database-user** - Имя пользователя базы данных. *Переменная окружения: POSTGRES_USER*
+  - **--database-password** - Пароль базы данных. *Переменная окружения: POSTGRES_PASSWORD*
+  - **--database-name** - Имя базы данных. *Переменная окружения: POSTGRES_DB*
+  - **--n-jobs** - Количество параллельных процессов. -1 означает использование всех доступных ядер CPU. *По умолчанию: -1*
+
+- **local**:
+  - **--dataset-path** - Путь к обрабатываемым данным
+
+- **s3**:
+  - **--LakeFS-address** - Адрес LakeFS. *Переменная окружения: LAKEFS_ADDRESS*
+  - **--LakeFS-port** - Порт LakeFS. *Переменная окружения: LAKEFS_PORT*
+  - **--ACCESS-KEY-ID** - Ключ доступа LakeFS. *Переменная окружения: LAKEFS_ACCESS_KEY_ID*
+  - **--SECRET-KEY** - Секретный ключ LakeFS. *Переменная окружения: LAKEFS_SECRET_KEY*
+  - **--repository-name** - Имя репозитория LakeFS
+  - **--branch-name** - Имя ветки. *По умолчанию: main*
 
 ## Вычисление WER/CER между ASR и Original текстами
 
-Для обнарушения несоответствий между произносимым и размеченными текстами полезно вычислить WER/CER для тех файлов, которые имеют оба текста.
+Для вычисления метрик WER/CER выполните:
 
-Чтобы добавить эту информацию в базу данных, выполните:
+```bash
+python -m src.metrics_collection.calculate_wer_cer local --dataset-path [PATH_TO_DATASET]
 ```
-python -m src.metrics_collection.calculate_wer_cer --dataset-path [PATH_TO_DATASET]
-```
 
-Семплы, для которых нет одного из текстов будут проигнорированы и WER/CER для них не будет подсчитан. Отмечу, что при изменении одного из текстов в базе данных, WER/CER автоматически не будет пересчитан, поэтому полезным может быть иногда перезаписывать данные с помощью `--overwrite`.
-
-Все параметры указаны ниже:
-- **--dataset-path** - Path to data to process.
-- **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+Описание параметров аналогично параметрам сбора аудио метаданных.
 
 ## Улучшение качества с помощью Resemble Enhancer'а
 
-Для улучшения качества голоса и избавления от внешних шумов используется [resemble-enhancer](https://github.com/resemble-ai/resemble-enhance/tree/main). Данный инструмент инкапсулирован в Triton Inference Server, подробнее про сервер можно прочитать в [официальных туториалах](https://github.com/triton-inference-server/tutorials). 
-
-Данный инструмент обрабатывает **только .wav файлы** и результатом являются .wav файлы с частотой дикретизации **44.1kHZ** с одним каналом (**mono**).
-
-
-Для обработки требуется сперва поднять Docker контейнер с Enhancer'ом
+Для улучшения качества голоса используется [resemble-enhancer](https://github.com/resemble-ai/resemble-enhance/tree/main). Инструмент обрабатывает **только .wav файлы** и возвращает файлы с частотой дискретизации **44.1kHZ** и одним каналом (**mono**).
 
 ### Запуск Enhancer'а
 
-```
+```bash
 docker compose -f triton/enhancer/compose.yaml up
 ```
 
-Можно изменить порты Triton'а или количество доступных видеокарт прописав соответствующие переменные среды в `.env` файле. Пример приведет в `.env.example`
-
+Можно изменить порты Triton'а или количество доступных видеокарт в файле `.env`:
 ```
 docker compose --env-file .env -f triton/enhancer/compose.yaml up
 ```
@@ -315,76 +282,90 @@ docker compose --env-file .env -f triton/enhancer/compose.yaml up
 - TRITON_GRPC_PORT: 8521
 - TRITON_METRICS_PORT: 8522
 
-### Обработка Enhancer'ом [стандартизированного датасета](#структура-датасетов-после-обработки):
+### Обработка Enhancer'ом стандартизированного датасета
 
-```
-python -m src.preprocessing.enhance --triton-address 127.0.0.1 --triton-port 8520 --dataset-path [PATH_TO_ORIGIN_DATASET] --output-path [SAVE_PATH]
+```bash
+python -m src.preprocessing.enhance --triton-address 127.0.0.1 --triton-port 8520 local_to-local --input-path [PATH_TO_ORIGIN_DATASET] --output-path [SAVE_PATH]
 ```
 
-Описание всех параметров представлено ниже:
-- **--dataset-path** - Path to processing dataset.
-- **--metadata-path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--output-path** - Path where the enhanced dataset will be saved.
-- **--chunk-duration** - The duration in seconds by which the enhancer will divide your sample. Default: 30.0
-- **--chunk-overlap** - The duration of overlap between adjacent samples. Does not enlarge chunk_duration. Default: 1.0
-- **--model-name** - The name of Triton Inference Server model. Default: enhancer_ensemble
-- **--batch-size** - The size of the batch of async tasks every job will process
-- **--triton-address** - The Triton Inference Server address
-- **--triton-port** - The Triton Inference Server port
-- **--n-jobs** - Number of parallel jobs. If -1 specified, use all available CPU cores.
+Описание параметров:
+- **Общие**:
+  - **--metadata-path** - Путь к файлу метаданных. *По умолчанию: [DATASET_PATH]/metadata.csv*
+  - **--output-path** - Путь для сохранения обработанного датасета
+  - **--chunk-duration** - Длительность чанка в секундах. *По умолчанию: 30.0*
+  - **--chunk-overlap** - Длительность перекрытия между соседними чанками. *По умолчанию: 1.0*
+  - **--model-name** - Имя модели Triton Inference Server. *По умолчанию: enhancer_ensemble*
+  - **--batch-size** - Размер батча для асинхронных задач
+  - **--triton-address** - Адрес Triton Inference Server
+  - **--triton-port** - Порт Triton Inference Server
+  - **--n-jobs** - Количество параллельных процессов. -1 означает использование всех доступных ядер CPU
+
+- **local_to_local**:
+  - **--input-path** - Путь к обрабатываемому датасету
+  - **--output-path** - Путь для сохранения результатов
+
+- **local_to_s3**:
+  - **--input-path** - Путь к обрабатываемому датасету
+  - **--output-repository-name** - Имя репозитория LakeFS для сохранения результатов
+  - **--output-branch-name** - Имя ветки для сохранения результатов. *По умолчанию: main*
+
+- **s3_to_local**:
+  - **--input-repository-name** - Имя репозитория LakeFS с исходным датасетом
+  - **--input-branch-name** - Имя ветки с исходным датасетом. *По умолчанию: main*
+  - **--output-path** - Путь для сохранения результатов
+
+- **s3_to_s3**:
+  - **--input-repository-name** - Имя репозитория LakeFS с исходным датасетом
+  - **--input-branch-name** - Имя ветки с исходным датасетом. *По умолчанию: main*
+  - **--output-repository-name** - Имя репозитория LakeFS для сохранения результатов
+  - **--output-branch-name** - Имя ветки для сохранения результатов. *По умолчанию: main*
 
 ## Получение информации о интонационных паузах с помощью Montreal Forced Aligner
 
-Montreal Forced Aligner позволяет по имеющимся текстам и аудиофайлам получить разметку времени произнесения каждого слова/фонемы. Для последующего использования мы сохраняем эту информацию в базу данных, например для восстанавления пунктуации.
+Montreal Forced Aligner позволяет получить разметку времени произнесения каждого слова/фонемы.
 
 ### Установка зависимостей
 
-К сожалению Montreal Forced Aligner (MFA) имеет специфические зависимости, которые не устанавливаются корректно с помощью pip. Однако есть готовый контейнер с треубетыми библиотеками.
-
-Чтобы поднять соответствующий контейнер используйте:
+Для работы с MFA используется Docker контейнер:
 
 ```bash
 docker run -it --name MFA_Processing --network host -v [PATH_TO_DATA_TO_PROCESS]:/workspace/data -v $(pwd):/workspace mmcauliffe/montreal-forced-aligner
 ```
 
-Дальшее нужно дополнительно установить библиотеки, требуемы для работы.
-
-```
+Установите дополнительные зависимости:
+```bash
 pip install textgrid, click, SQLAlchemy, psycopg, psycopg2, python-dotenv, pyyaml
 ```
 
 ### Обработка датасета с помощью MFA
 
-Внутри поднятого контейнера запустите следующий скрипт
+Внутри контейнера выполните:
 
 ```bash
 cd /workspace
-
-python -m src.preprocessing.mfa_processing --dataset-path ./data/[YOUR_DATASET] 
+python -m src.preprocessing.mfa_processing --dataset-path ./data/[YOUR_DATASET]
 ```
 
-Описание всех параметров представлено ниже:
-- **--dataset-path** - Path to data to process.
-- **--metadata_path** - Path to .csv file with metadata. Default: [DATASET_PATH]/metadata.csv
-- **--overwrite** - Is to overwrite existing metrics or not. Default: False
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--n-jobs** - Number of parallel jobs to use while processing. -1 means to use all cores. Default: -1
+Описание параметров:
+- **--dataset-path** - Путь к обрабатываемому датасету
+- **--metadata_path** - Путь к файлу метаданных. *По умолчанию: [DATASET_PATH]/metadata.csv*
+- **--overwrite** - Перезаписать существующие метрики? *По умолчанию: False*
+- **--database-address** - Адрес базы данных. *Переменная окружения: POSTGRES_ADDRESS*
+- **--database-port** - Порт базы данных. *Переменная окружения: POSTGRES_PORT*
+- **--database-user** - Имя пользователя базы данных. *Переменная окружения: POSTGRES_USER*
+- **--database-password** - Пароль базы данных. *Переменная окружения: POSTGRES_PASSWORD*
+- **--database-name** - Имя базы данных. *Переменная окружения: POSTGRES_DB*
+- **--n-jobs** - Количество параллельных процессов. -1 означает использование всех доступных ядер CPU. *По умолчанию: -1*
 
-## Фильтрация датасетов по собранным метаданным. Формирование filtered_metadata.csv
+## Фильтрация датасетов по собранным метаданным
 
-Собранные в базе данных метаданные позволяют отправлять на обработку и обучение только те данные, которые подходят нам по критериям.
+Для фильтрации датасета согласно конфигурационному файлу выполните:
 
-Для того, чтобы сформировать для датасета новую выборку согластно конфигурационному файлу, выполните следующее:
+```bash
+python -m src.filtration.database_filtration local --dataset-path [PATH_TO_DATASET] --path-to-config [PATH_TO_YAML_FILTRATION_CONFIG]
 ```
-python -m src.filtration.database_filtration --dataset-path [PATH_TO_DATASET] --path-to-config [PATH_TO_YAML_FILTRATION_CONFIG]
-```
 
-Передаваемый конфиг должен выглядеть как YAML файл со подобный содержанием:
-
+Пример конфигурационного файла:
 ```yaml
 default:
   sample_rate: 44100
@@ -418,16 +399,22 @@ default:
   only_with_Original_texts: False
 ```
 
-Самый высокий уровень содержит разные конфиги. В даннм примере конфиг один - default, и он ожидается скриптом по умолчанию. Можно указать другой конфиг с помощью параметра `--config-name`. По результатам создастся `filtered_metadata.csv` файл содержащий колонки "path_to_wav", "speaker_id", "hash".
+Описание параметров:
+- **--dataset-path** - Путь к обрабатываемому датасету
+- **--path-to-config** - Путь к YAML файлу конфигурации фильтрации
+- **--config-name** - Имя конфигурации в YAML файле. *По умолчанию: default*
+- **--database-address** - Адрес базы данных. *Переменная окружения: POSTGRES_ADDRESS*
+- **--database-port** - Порт базы данных. *Переменная окружения: POSTGRES_PORT*
+- **--database-user** - Имя пользователя базы данных. *Переменная окружения: POSTGRES_USER*
+- **--database-password** - Пароль базы данных. *Переменная окружения: POSTGRES_PASSWORD*
+- **--database-name** - Имя базы данных. *Переменная окружения: POSTGRES_DB*
+- **--save-path** - Путь для сохранения отфильтрованного датасета. *По умолчанию: [DATASET_PATH]/filtered_metadata.csv*
+- **--include-text** - Добавить колонку "text" в файл метаданных. *По умолчанию: False*
 
-Все параметры скрипта приведены ниже:
-- **--dataset-path** - Path to data to process.
-- **--path-to-config** - Path to YAML filtration config.
-- **--config-name** - Name of config in YAML file to use. Default: default
-- **--database-address** - Address of the database. Environment Variable: POSTGRES_ADDRESS
-- **--database-port** - Port of the database/ Environment Variable: POSTGRES_PORT
-- **--database-user** - Username to use for database authentication. Environment Variable: POSTGRES_USER
-- **--database-password** - Password to use for database authentication. Environment Variable: POSTGRES_PASSWORD
-- **--database-name** - Name of the database. Environment Variable: POSTGRES_DB
-- **--save-path** - Path where to save metadata Data Frame file. Default: [DATASET_PATH]/filtered_metadata.csv
-- **--include-text** - Is it needed to create "text" column in metadata file.
+- **s3**:
+  - **--LakeFS-address** - Адрес LakeFS. *Переменная окружения: LAKEFS_ADDRESS*
+  - **--LakeFS-port** - Порт LakeFS. *Переменная окружения: LAKEFS_PORT*
+  - **--ACCESS-KEY-ID** - Ключ доступа LakeFS. *Переменная окружения: LAKEFS_ACCESS_KEY_ID*
+  - **--SECRET-KEY** - Секретный ключ LakeFS. *Переменная окружения: LAKEFS_SECRET_KEY*
+  - **--repository-name** - Имя репозитория LakeFS
+  - **--branch-name** - Имя ветки. *По умолчанию: main*

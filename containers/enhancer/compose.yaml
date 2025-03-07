@@ -4,7 +4,7 @@ services:
   enhancer-inference-server:
     image: resemble-enhancer-triton-container
     build:
-      context: ./triton/enhancer
+      context: .
       dockerfile: Dockerfile
     container_name: Resemble-Enhancer-Triton-Server
     network_mode: "host"

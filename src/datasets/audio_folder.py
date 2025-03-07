@@ -24,7 +24,7 @@ audio_extentions = [
 
 
 def parce_audio_folder_to_dataset(
-    folder_path: str, save_path: str, single_speaker=False, unknown_speakers=False, overwrite=False, n_jobs=-1
+    folder_path: str, save_path: str, single_speaker=False, unknown_speaker=False, overwrite=False, n_jobs=-1
 ):
     pd.options.display.max_columns = None
 
@@ -38,7 +38,7 @@ def parce_audio_folder_to_dataset(
         lambda path: Path(path).parts[0] if len(Path(path).parts) > 0 else None
     )
 
-    if single_speaker and not unknown_speakers:
+    if single_speaker and not unknown_speaker:
         data["speaker_id"] = 0
         data["path_to_wav"] = data.apply(
             lambda row: os.path.join(
@@ -46,15 +46,14 @@ def parce_audio_folder_to_dataset(
             ),
             axis=1,
         )
-    elif not single_speaker and unknown_speakers:
+    elif not single_speaker and unknown_speaker:
         data["speaker_id"] = -1
         data["path_to_wav"] = data.apply(
             lambda row: os.path.join("wavs", *Path(row.relative_path_to_directory).parts, row.file_name + ".wav"),
             axis=1,
         )
-    elif not single_speaker and not unknown_speakers:
+    elif not single_speaker and not unknown_speaker:
         unique_speaker_dirs = list(data[data["speaker_dir"].notnull()]["speaker_dir"].unique())
-        print(unique_speaker_dirs)
         data.loc[data["speaker_dir"].isnull(), "speaker_id"] = -1
         data.loc[data["speaker_dir"].notnull(), "speaker_id"] = data[data["speaker_dir"].notnull()][
             "speaker_dir"

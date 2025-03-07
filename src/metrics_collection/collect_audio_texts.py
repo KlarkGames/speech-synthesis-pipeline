@@ -1,6 +1,5 @@
 import dataclasses
 from typing import List
-import os
 
 import click
 import pandas as pd
@@ -8,22 +7,17 @@ from dotenv import load_dotenv
 from joblib import Parallel, delayed
 from sqlalchemy import create_engine, select, update
 from sqlalchemy.orm import Session
+from sqlalchemy.engine.base import Engine
 from tqdm import tqdm
 
 from src.metrics_collection.models import AudioToOriginalText, Base
 from src.utils import read_metadata_and_calculate_hash, update_bar_on_ending
+from src.data_managers import LocalFileSystemManager, LakeFSFileSystemManager, AbstractFileSystemManager
 
 load_dotenv()
 
 
-@click.command()
-@click.option("--dataset-path", type=click.Path(exists=True), help="Path to dataset")
-@click.option(
-    "--metadata-path",
-    type=click.Path(exists=True, dir_okay=False),
-    help="Path to .csv file with metadata.",
-    callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
-)
+@click.group()
 @click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
@@ -35,9 +29,9 @@ load_dotenv()
 @click.option(
     "--n-jobs", type=int, default=-1, help="Number of parallel jobs to use while processing. -1 means to use all cores."
 )
-def main(
-    dataset_path: str,
-    metadata_path: str,
+@click.pass_context
+def cli(
+    context: click.Context,
     overwrite: bool,
     database_address: str,
     database_port: int,
@@ -46,13 +40,75 @@ def main(
     database_name: str,
     n_jobs: int,
 ):
-    metadata_df = read_metadata_and_calculate_hash(metadata_path, dataset_path, n_jobs=n_jobs)
+    context.ensure_object(dict)
 
-    assert "text" in metadata_df.columns
+    context.obj["overwrite"] = overwrite
+    context.obj["n_jobs"] = n_jobs
 
     engine = create_engine(
         f"postgresql+psycopg://{database_user}:{database_password}@{database_address}:{database_port}/{database_name}"
     )
+    context.obj["engine"] = engine
+
+
+@cli.command()
+@click.option("--dataset-path", type=click.Path(exists=True), help="Path to dataset")
+@click.pass_context
+def local(context: click.Context, dataset_path: str):
+    file_system_manager = LocalFileSystemManager(dataset_path)
+
+    process_text_metrics_to_db(
+        file_system_manager=file_system_manager,
+        engine=context.obj["engine"],
+        overwrite=context.obj["overwrite"],
+        n_jobs=context.obj["n_jobs"],
+    )
+
+
+@cli.command()
+@click.option("--LakeFS-address", type=str, help="LakeFS address", envvar="LAKEFS_ADDRESS")
+@click.option("--LakeFS-port", type=str, help="LakeFS port", envvar="LAKEFS_PORT")
+@click.option("--ACCESS-KEY-ID", type=str, help="Access key id of LakeFS", envvar="LAKEFS_ACCESS_KEY_ID")
+@click.option("--SECRET-KEY", type=str, help="Secret key of LakeFS", envvar="LAKEFS_SECRET_KEY")
+@click.option("--repository-name", type=str, help="Name of LakeFS repository")
+@click.option("--branch-name", type=str, help="Name of the branch.", default="main")
+@click.pass_context
+def s3(
+    context: click.Context,
+    lakefs_address: str,
+    lakefs_port: str,
+    access_key_id: str,
+    secret_key: str,
+    repository_name: str,
+    branch_name: str,
+):
+    file_system_manager = LakeFSFileSystemManager(
+        lakefs_address=lakefs_address,
+        lakefs_port=lakefs_port,
+        lakefs_ACCESS_KEY=access_key_id,
+        lakefs_SECRET_KEY=secret_key,
+        lakefs_repository_name=repository_name,
+        lakefs_branch_name=branch_name,
+    )
+
+    process_text_metrics_to_db(
+        file_system_manager=file_system_manager,
+        engine=context.obj["engine"],
+        overwrite=context.obj["overwrite"],
+        n_jobs=context.obj["n_jobs"],
+    )
+
+
+def process_text_metrics_to_db(
+    file_system_manager: AbstractFileSystemManager,
+    engine: Engine,
+    overwrite: bool,
+    n_jobs: int = -1,
+) -> None:
+    with file_system_manager.get_buffered_reader("metadata.csv") as metadata_reader:
+        metadata_df = read_metadata_and_calculate_hash(metadata_reader, file_system_manager, n_jobs=n_jobs)
+
+    assert "text" in metadata_df.columns
 
     Base.metadata.create_all(engine, checkfirst=True)
 
@@ -84,4 +140,4 @@ def get_original_texts_from_selected_samples(dataframe: pd.DataFrame, n_jobs: in
 
 
 if __name__ == "__main__":
-    main()
+    cli()
