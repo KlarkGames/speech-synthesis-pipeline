@@ -175,6 +175,14 @@ class FiltersGenerator:
         """
         return self._create_range_filter("WER", TextComparationMetrics.WER)
 
+    def CPS_ASR_texts_filter(self) -> Optional[ColumnElement]:
+        """Generate a filter for Characters Per Second (CPS) on ASR texts.
+
+        Returns:
+            SQLAlchemy filter condition for CPS if configured, None otherwise
+        """
+        return self._create_range_filter("CPS", AudioToASRText.cps)
+
     def use_unknown_speakers_filter(self) -> Optional[ColumnElement]:
         """Generate a filter for unknown speakers.
 
@@ -345,6 +353,7 @@ class FiltersGenerator:
             self.dBFS_filter(),
             self.CER_filter(),
             self.WER_filter(),
+            self.CPS_ASR_texts_filter(),
             self.use_unknown_speakers_filter(),
             self.only_with_ASR_texts_filter(),
             self.only_with_Original_texts_filter(),

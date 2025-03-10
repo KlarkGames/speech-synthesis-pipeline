@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.engine.base import Engine
 from tqdm import tqdm
 
-from src.metrics_collection.models import AudioToOriginalText, Base
+from src.metrics_collection.models import AudioToOriginalText, Base, AudioMetrics
 from src.utils import read_metadata_and_calculate_hash, update_bar_on_ending
 from src.data_managers import LocalFileSystemManager, LakeFSFileSystemManager, AbstractFileSystemManager
 
@@ -18,7 +18,7 @@ load_dotenv()
 
 
 @click.group()
-@click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
+@click.option("--overwrite", is_flag=True, help="Is to overwrite existing metrics or not.", default=False)
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
 @click.option("--database-user", type=str, help="Username to use for database authentication", envvar="POSTGRES_USER")
@@ -113,6 +113,13 @@ def process_text_metrics_to_db(
     Base.metadata.create_all(engine, checkfirst=True)
 
     with Session(engine) as session:
+        duration_query = select(AudioMetrics.audio_md5_hash, AudioMetrics.duration_seconds)
+        duration_results = session.execute(duration_query).all()
+        duration_dict = {hash_: duration for hash_, duration in duration_results}
+        
+        metadata_df['duration'] = metadata_df['hash'].map(duration_dict)
+        metadata_df['cps'] = metadata_df.apply(lambda x: len(x['text']) / x['duration'], axis=1)
+
         existing_in_db_hashes_of_audio = session.scalars(select(AudioToOriginalText.audio_md5_hash)).all()
 
         samples_to_add = metadata_df[~metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
@@ -132,7 +139,11 @@ def process_text_metrics_to_db(
 def get_original_texts_from_selected_samples(dataframe: pd.DataFrame, n_jobs: int) -> List[AudioToOriginalText]:
     tqdm_bar = tqdm(total=len(dataframe), desc="Collecting dataset info")
     samples_text_info = Parallel(n_jobs=n_jobs, require="sharedmem")(
-        delayed(update_bar_on_ending(tqdm_bar)(AudioToOriginalText))(audio_md5_hash=sample.hash, text=sample.text)
+        delayed(update_bar_on_ending(tqdm_bar)(AudioToOriginalText))(
+            audio_md5_hash=sample.hash, 
+            text=sample.text, 
+            cps=sample.cps
+        )
         for sample in dataframe.itertuples()
     )
     samples_text_info = [info for info in samples_text_info if info is not None]

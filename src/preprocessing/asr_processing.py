@@ -38,7 +38,7 @@ from sqlalchemy.orm import Session
 from tqdm import tqdm
 
 from src.data_managers import AbstractFileSystemManager, LakeFSFileSystemManager, LocalFileSystemManager
-from src.metrics_collection.models import AudioToASRText, Base
+from src.metrics_collection.models import AudioToASRText, Base, AudioMetrics
 from src.utils import read_metadata_and_calculate_hash, update_bar_on_ending
 
 load_dotenv()
@@ -132,7 +132,7 @@ def process_audios(input_batch, file_system_manager, triton_address, triton_port
 
 
 @click.group()
-@click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
+@click.option("--overwrite", is_flag=True, help="Is to overwrite existing metrics or not.", default=False)
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
 @click.option("--database-user", type=str, help="Username to use for database authentication", envvar="POSTGRES_USER")
@@ -284,6 +284,13 @@ def process_dataset(
     Base.metadata.create_all(engine, checkfirst=True)
 
     with Session(engine) as session:
+        duration_query = select(AudioMetrics.audio_md5_hash, AudioMetrics.duration_seconds)
+        duration_results = session.execute(duration_query).all()
+        duration_dict = {hash_: duration for hash_, duration in duration_results}
+        
+        metadata_df['duration'] = metadata_df['hash'].map(duration_dict)
+        metadata_df['cps'] = metadata_df.apply(lambda x: len(x['text']) / x['duration'], axis=1)
+
         existing_in_db_hashes_of_audio = session.scalars(select(AudioToASRText.audio_md5_hash)).all()
 
         samples_to_add = metadata_df[~metadata_df["hash"].isin(existing_in_db_hashes_of_audio)]
@@ -365,7 +372,11 @@ def process_selected_samples(
 
     tqdm_bar = tqdm(total=len(dataframe), desc="Collecting ASR texts data")
     samples_asr_text_info = Parallel(n_jobs=n_jobs, require="sharedmem")(
-        delayed(update_bar_on_ending(tqdm_bar)(AudioToASRText))(audio_md5_hash=sample.hash, text=sample.recognized_text)
+        delayed(update_bar_on_ending(tqdm_bar)(AudioToASRText))(
+            audio_md5_hash=sample.hash, 
+            text=sample.recognized_text,
+            cps=sample.cps
+        )
         for sample in dataframe.itertuples()
     )
 
