@@ -18,7 +18,7 @@ default:
     max: null
   CPS:
     min: null
-    max: 10.0
+    max: null
   samples_per_speaker:
     min: null
     max: null

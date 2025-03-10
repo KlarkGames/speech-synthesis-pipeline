@@ -359,13 +359,36 @@ python -m src.preprocessing.mfa_processing --dataset-path ./data/[YOUR_DATASET]
 
 ## Фильтрация датасетов по собранным метаданным
 
-Для фильтрации датасета согласно конфигурационному файлу выполните:
+Для фильтрации датасета по собранным метаданным используйте команду:
 
 ```bash
-python -m src.filtration.database_filtration local --dataset-path [PATH_TO_DATASET] --path-to-config [PATH_TO_YAML_FILTRATION_CONFIG]
+python -m src.filtration.database_filtration --path-to-config [PATH_TO_CONFIG] local --dataset-path [PATH_TO_DATASET] 
 ```
 
-Пример конфигурационного файла:
+Описание параметров:
+- **Общие**:
+  - **--path-to-config** - Путь к YAML файлу с конфигурацией фильтров
+  - **--config-name** - Имя конфигурации в YAML файле. *По умолчанию: default*
+  - **--database-address** - Адрес базы данных. *Переменная окружения: POSTGRES_ADDRESS*
+  - **--database-port** - Порт базы данных. *Переменная окружения: POSTGRES_PORT*
+  - **--database-user** - Имя пользователя базы данных. *Переменная окружения: POSTGRES_USER*
+  - **--database-password** - Пароль базы данных. *Переменная окружения: POSTGRES_PASSWORD*
+  - **--database-name** - Имя базы данных. *Переменная окружения: POSTGRES_DB*
+  - **--save-path** - Путь для сохранения отфильтрованного metadata.csv. *По умолчанию: filtered_metadata.csv*
+  - **--include-text** - Добавить колонку "text" в metadata.csv? *По умолчанию: False*
+
+- **local**:
+  - **--dataset-path** - Путь к обрабатываемым данным
+
+- **s3**:
+  - **--LakeFS-address** - Адрес LakeFS. *Переменная окружения: LAKEFS_ADDRESS*
+  - **--LakeFS-port** - Порт LakeFS. *Переменная окружения: LAKEFS_PORT*
+  - **--ACCESS-KEY-ID** - Ключ доступа LakeFS. *Переменная окружения: LAKEFS_ACCESS_KEY_ID*
+  - **--SECRET-KEY** - Секретный ключ LakeFS. *Переменная окружения: LAKEFS_SECRET_KEY*
+  - **--repository-name** - Имя репозитория LakeFS
+  - **--branch-name** - Имя ветки. *По умолчанию: main*
+
+Пример конфигурации фильтров (`filtration_config.yaml`):
 ```yaml
 default:
   sample_rate: 44100
@@ -385,6 +408,9 @@ default:
   WER: 
     min: null
     max: null
+  CPS:
+    min: null
+    max: null
   samples_per_speaker:
     min: null
     max: null
@@ -399,22 +425,24 @@ default:
   only_with_Original_texts: False
 ```
 
-Описание параметров:
-- **--dataset-path** - Путь к обрабатываемому датасету
-- **--path-to-config** - Путь к YAML файлу конфигурации фильтрации
-- **--config-name** - Имя конфигурации в YAML файле. *По умолчанию: default*
-- **--database-address** - Адрес базы данных. *Переменная окружения: POSTGRES_ADDRESS*
-- **--database-port** - Порт базы данных. *Переменная окружения: POSTGRES_PORT*
-- **--database-user** - Имя пользователя базы данных. *Переменная окружения: POSTGRES_USER*
-- **--database-password** - Пароль базы данных. *Переменная окружения: POSTGRES_PASSWORD*
-- **--database-name** - Имя базы данных. *Переменная окружения: POSTGRES_DB*
-- **--save-path** - Путь для сохранения отфильтрованного датасета. *По умолчанию: [DATASET_PATH]/filtered_metadata.csv*
-- **--include-text** - Добавить колонку "text" в файл метаданных. *По умолчанию: False*
+Описание параметров фильтрации:
+- **sample_rate** - Частота дискретизации аудио
+- **channels** - Количество каналов аудио
+- **duration** - Длительность аудио в секундах
+- **SNR** - Отношение сигнал/шум
+- **dBFS** - Уровень громкости в dBFS
+- **CER** - Character Error Rate между ASR и оригинальным текстом
+- **WER** - Word Error Rate между ASR и оригинальным текстом
+- **CPS** - Characters Per Second (символов в секунду) для ASR текста
+- **samples_per_speaker** - Количество сэмплов на одного спикера
+- **minutes_per_speaker** - Количество минут на одного спикера
+- **text_len_per_duration** - Отношение длины текста к длительности аудио
+- **use_unknown_speakers** - Использовать сэмплы с неизвестными спикерами
+- **only_with_ASR_texts** - Использовать только сэмплы с ASR текстами
+- **only_with_Original_texts** - Использовать только сэмплы с оригинальными текстами
 
-- **s3**:
-  - **--LakeFS-address** - Адрес LakeFS. *Переменная окружения: LAKEFS_ADDRESS*
-  - **--LakeFS-port** - Порт LakeFS. *Переменная окружения: LAKEFS_PORT*
-  - **--ACCESS-KEY-ID** - Ключ доступа LakeFS. *Переменная окружения: LAKEFS_ACCESS_KEY_ID*
-  - **--SECRET-KEY** - Секретный ключ LakeFS. *Переменная окружения: LAKEFS_SECRET_KEY*
-  - **--repository-name** - Имя репозитория LakeFS
-  - **--branch-name** - Имя ветки. *По умолчанию: main*
+Для каждого числового параметра можно указать:
+- **min** - минимальное значение
+- **max** - максимальное значение
+
+Если значение не указано (null), фильтр не применяется.
