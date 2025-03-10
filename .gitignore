@@ -10,6 +10,7 @@ venv
 
 # Secrets
 .env
+**/alembic.ini
 
 # Visual Studio Code
 .vscode

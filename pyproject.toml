@@ -30,6 +30,7 @@ dependencies = [
     "lakefs-client>=1.44.0",
     "boto3>=1.36.18",
     "lakefs-spec>=0.11.2",
+    "alembic>=1.15.1",
 ]
 
 [dependency-groups]
