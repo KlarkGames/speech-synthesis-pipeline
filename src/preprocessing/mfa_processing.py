@@ -28,7 +28,7 @@ load_dotenv()
     help="Path to .csv file with metadata.",
     callback=lambda context, _, value: value if value else os.path.join(context.params["dataset_path"], "metadata.csv"),
 )
-@click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
+@click.option("--overwrite", is_flag=True, help="Is to overwrite existing metrics or not.", default=False)
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
 @click.option("--database-user", type=str, help="Username to use for database authentication", envvar="POSTGRES_USER")

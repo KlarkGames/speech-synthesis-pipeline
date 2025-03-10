@@ -132,7 +132,7 @@ def process_audios(input_batch, file_system_manager, triton_address, triton_port
 
 
 @click.group()
-@click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
+@click.option("--overwrite", is_flag=True, help="Is to overwrite existing metrics or not.", default=False)
 @click.option("--database-address", type=str, help="Address of the database", envvar="POSTGRES_ADDRESS")
 @click.option("--database-port", type=int, help="Port of the database", envvar="POSTGRES_PORT")
 @click.option("--database-user", type=str, help="Username to use for database authentication", envvar="POSTGRES_USER")

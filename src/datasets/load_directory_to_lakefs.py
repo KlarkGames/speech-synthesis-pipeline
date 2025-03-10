@@ -16,7 +16,7 @@ load_dotenv()
 @click.option("--SECRET-KEY", type=str, help="Secret key of LakeFS", envvar="LAKEFS_SECRET_KEY")
 @click.option("--repository-name", type=str, help="Name of LakeFS repository")
 @click.option("--branch-name", type=str, help="Name of the branch.", default="main")
-@click.option("--overwrite", type=bool, help="Is to overwrite existing metrics or not.", default=False)
+@click.option("--overwrite", is_flag=True, help="Is to overwrite existing metrics or not.", default=False)
 def cli(
     path: str,
     lakefs_address: str,
