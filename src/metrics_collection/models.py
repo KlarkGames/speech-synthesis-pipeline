@@ -33,13 +33,14 @@ class AudioToOriginalText(Base):
 
     audio_md5_hash: Mapped[str] = mapped_column(ForeignKey("audio_metrics.audio_md5_hash"), primary_key=True)
     text: Mapped[str]
-
+    cps: Mapped[float]
 
 class AudioToASRText(Base):
     __tablename__ = "audio_to_asr_text"
 
     audio_md5_hash: Mapped[str] = mapped_column(ForeignKey("audio_metrics.audio_md5_hash"), primary_key=True)
     text: Mapped[str]
+    cps: Mapped[float]
 
 
 class TextComparationMetrics(Base):

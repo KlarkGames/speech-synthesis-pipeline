@@ -16,15 +16,15 @@ default:
   WER: 
     min: null
     max: null
+  CPS:
+    min: null
+    max: 10.0
   samples_per_speaker:
     min: null
     max: null
   minutes_per_speaker:
     min: null
     max: null
-  text_len_per_duration:
-    min: null
-    max: null
-  use_unknown_speakers: True
+  use_unknown_speakers: False
   only_with_ASR_texts: False
   only_with_Original_texts: False
